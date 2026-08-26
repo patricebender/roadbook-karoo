@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
 import {
   ALL_CATEGORIES,
   type BuildRequest,
@@ -9,8 +10,15 @@ import {
 import { decodePolyline } from "./polyline.js";
 import { buildAlongRoute, buildNearby } from "./overpass.js";
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, trustProxy: true });
 await app.register(cors, { origin: true });
+
+// Cost guardrail: cap requests per client. Overpass-backed builds are expensive,
+// so keep this modest. Tunable via env for load testing.
+await app.register(rateLimit, {
+  max: Number(process.env.RATE_LIMIT_MAX ?? 30),
+  timeWindow: process.env.RATE_LIMIT_WINDOW ?? "1 minute",
+});
 
 function validCategories(input: unknown): Category[] {
   if (!Array.isArray(input)) return [];
