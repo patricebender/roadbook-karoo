@@ -8,7 +8,7 @@
       "component": "extension",
       "package-name": "roadbook-extension",
       "extra-files": [
-        { "type": "generic", "path": "extension/app/build.gradle.kts" }
+        { "type": "generic", "path": "app/build.gradle.kts" }
       ]
     }
   }
