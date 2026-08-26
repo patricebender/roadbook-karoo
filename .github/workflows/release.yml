@@ -11,14 +11,22 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
-permissions:
-  contents: write        # create releases + tags
-  pull-requests: write   # maintain the release PR
-  packages: read         # read karoo-ext from GitHub Packages via GITHUB_TOKEN
+# Deny-all by default; the release job opts into exactly what it needs below.
+permissions: {}
+
+# Serialize release runs so a fast follow-up push can't race the release PR.
+concurrency:
+  group: release-extension
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write        # create releases + tags
+      pull-requests: write   # maintain the release PR
+      packages: read         # read karoo-ext from GitHub Packages via GITHUB_TOKEN
     steps:
       - name: Release Please
         id: rp

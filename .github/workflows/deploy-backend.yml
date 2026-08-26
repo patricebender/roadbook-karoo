@@ -11,6 +11,14 @@ on:
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch: {}
 
+# Deny-all by default; each job opts into exactly what it needs.
+permissions: {}
+
+# Never run two deploys of the same ref at once; let an in-flight deploy finish.
+concurrency:
+  group: deploy-backend-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   PROJECT_ID: roadbook-karoo
   REGION: europe-west1
