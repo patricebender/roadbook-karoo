@@ -1,0 +1,24 @@
+# --- Android / Gradle ---
+extension/.gradle/
+extension/build/
+extension/app/build/
+extension/local.properties
+extension/**/*.iml
+.idea/
+*.keystore
+*.jks
+
+# --- Node / backend ---
+backend/node_modules/
+backend/dist/
+backend/*.log
+
+# --- Secrets (never commit) ---
+# karoo-ext token lives in ~/.gradle/gradle.properties, never in-repo.
+gradle.properties.local
+.env
+.env.*
+*.pem
+
+# --- OS ---
+.DS_Store

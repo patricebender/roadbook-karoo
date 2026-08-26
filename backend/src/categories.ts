@@ -1,0 +1,49 @@
+// Category → OSM tag filters → Symbol.POI type.
+// This is the core of the two custom features: category toggles select which
+// tag groups get queried, and each OSM element resolves to a Symbol.POI type.
+
+import type { Category, PoiType } from "./contract.js";
+
+/** One OSM tag filter, e.g. amenity=cafe, and the POI type it resolves to. */
+export interface TagRule {
+  key: string;
+  value: string;
+  type: PoiType;
+}
+
+export const CATEGORY_RULES: Record<Category, TagRule[]> = {
+  food_drink: [
+    { key: "amenity", value: "cafe", type: "COFFEE" },
+    { key: "amenity", value: "restaurant", type: "FOOD" },
+    { key: "amenity", value: "fast_food", type: "FOOD" },
+    { key: "amenity", value: "bar", type: "BAR" },
+    { key: "amenity", value: "pub", type: "BAR" },
+    { key: "shop", value: "convenience", type: "CONVENIENCE_STORE" },
+    { key: "shop", value: "supermarket", type: "CONVENIENCE_STORE" },
+  ],
+  water_restroom: [
+    { key: "amenity", value: "drinking_water", type: "REST_STOP" },
+    { key: "amenity", value: "toilets", type: "RESTROOM" },
+  ],
+  bike: [
+    { key: "shop", value: "bicycle", type: "BIKE_SHOP" },
+    { key: "amenity", value: "bicycle_parking", type: "BIKE_PARKING" },
+  ],
+  fuel: [{ key: "amenity", value: "fuel", type: "GAS_STATION" }],
+};
+
+/** All rules for the enabled categories, flattened. */
+export function rulesFor(categories: Category[]): TagRule[] {
+  return categories.flatMap((c) => CATEGORY_RULES[c] ?? []);
+}
+
+/** Resolve an OSM element's tags to a PoiType, or null if none of ours match. */
+export function resolveType(
+  tags: Record<string, string>,
+  rules: TagRule[],
+): PoiType | null {
+  for (const r of rules) {
+    if (tags[r.key] === r.value) return r.type;
+  }
+  return null;
+}
