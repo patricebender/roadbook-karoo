@@ -59,6 +59,7 @@ jobs:
             --image "${{ env.REGISTRY }}/${{ env.SERVICE }}:${{ github.sha }}" \
             --region ${{ env.REGION }} \
             --platform managed \
+            --service-account roadbook-runtime@roadbook-karoo.iam.gserviceaccount.com \
             --allow-unauthenticated \
             --port 8080 \
             --min-instances 0 \

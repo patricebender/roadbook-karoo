@@ -20,6 +20,7 @@ gcloud run deploy "$SERVICE" \
   --project "$PROJECT_ID" \
   --region "$REGION" \
   --image "$IMAGE" \
+  --service-account "roadbook-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
   --allow-unauthenticated \
   --min-instances=0 \
   --max-instances=2 \
