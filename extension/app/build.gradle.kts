@@ -13,7 +13,9 @@ android {
         applicationId = "io.roadbook.karoo"
         minSdk = 23
         targetSdk = 34
-        versionCode = 1
+        // versionCode: CI injects the monotonic run number; defaults to 1 locally.
+        versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
+        // x-release-please-version
         versionName = "0.1.0"
     }
 

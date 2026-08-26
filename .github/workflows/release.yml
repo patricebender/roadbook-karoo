@@ -1,51 +1,59 @@
-name: Build & Release APK
+name: Release extension
 
-# Auto-release the extension APK whenever the extension changes on main.
-# Version is derived as vYYYY.MM.DD-<short-sha> (monotonic, no manual tagging).
-# The Companion app installs from the release asset URL.
+# Semantic versioning via release-please (Conventional Commits).
+#
+# Flow: feat:/fix: commits on main -> release-please maintains a "Release PR"
+# that bumps versionName in extension/app/build.gradle.kts + CHANGELOG. Merging
+# that PR creates the tag `extension-vX.Y.Z` + a GitHub Release, and this same
+# run then builds the APK and attaches it to that release.
 on:
   push:
     branches: [main]
-    paths:
-      - "extension/**"
-      - ".github/workflows/release.yml"
   workflow_dispatch: {}
 
 permissions:
-  contents: write   # create releases + tags
-  packages: read    # read karoo-ext from GitHub Packages via GITHUB_TOKEN
+  contents: write        # create releases + tags
+  pull-requests: write   # maintain the release PR
+  packages: read         # read karoo-ext from GitHub Packages via GITHUB_TOKEN
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Release Please
+        id: rp
+        uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5 # v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
-      - uses: actions/setup-java@v4
+      # Everything below only runs when a Release PR was just merged.
+      - name: Checkout
+        if: ${{ steps.rp.outputs.release_created }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up JDK
+        if: ${{ steps.rp.outputs.release_created }}
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Compute version
-        id: ver
-        run: echo "version=v$(date +%Y.%m.%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Build debug APK
+      - name: Build APK
+        if: ${{ steps.rp.outputs.release_created }}
         working-directory: extension
         env:
-          # karoo-ext is on GitHub Packages; the automatic token can read it.
           GPR_USER: ${{ github.actor }}
           GPR_KEY: ${{ secrets.GITHUB_TOKEN }}
+          # Monotonic Android versionCode; versionName comes from release-please.
+          VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew :app:assembleDebug --no-daemon
 
-      - name: Rename APK
-        working-directory: extension
-        run: cp app/build/outputs/apk/debug/app-debug.apk "roadbook-${{ steps.ver.outputs.version }}.apk"
-
-      - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.ver.outputs.version }}
-          files: extension/roadbook-*.apk
-          generate_release_notes: true
-          make_latest: true
+      - name: Attach APK to release
+        if: ${{ steps.rp.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.rp.outputs.tag_name }}
+        run: |
+          cp extension/app/build/outputs/apk/debug/app-debug.apk "roadbook-${TAG}.apk"
+          gh release upload "$TAG" "roadbook-${TAG}.apk" --clobber
