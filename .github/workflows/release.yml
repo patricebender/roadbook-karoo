@@ -37,18 +37,18 @@ jobs:
 
       # Everything below only runs when a Release PR was just merged.
       - name: Checkout
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.releases_created == 'true' }}
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Set up JDK
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.releases_created == 'true' }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Build APK
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.releases_created == 'true' }}
         working-directory: extension
         env:
           GPR_USER: ${{ github.actor }}
@@ -58,10 +58,12 @@ jobs:
         run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Attach APK to release
-        if: ${{ steps.rp.outputs.release_created }}
+        if: ${{ steps.rp.outputs.releases_created == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.rp.outputs.tag_name }}
+          # In manifest mode with a component, the tag output is path-prefixed
+          # (extension--tag_name); fall back to the plain name just in case.
+          TAG: ${{ steps.rp.outputs['extension--tag_name'] || steps.rp.outputs.tag_name }}
         run: |
           cp extension/app/build/outputs/apk/debug/app-debug.apk "roadbook-${TAG}.apk"
           gh release upload "$TAG" "roadbook-${TAG}.apk" --clobber
