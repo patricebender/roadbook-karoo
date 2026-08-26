@@ -26,6 +26,8 @@ The extension is versioned with **semantic versioning** driven by
 - Normal pushes do **not** publish an APK — only merging the Release PR does.
 - `versionCode` is the CI run number: monotonic (Android requires it to increase) but not
   tied to the semver number. That's fine and intentional.
-- The version of record is the annotated `versionName` line in `build.gradle.kts` (marked
-  with `// x-release-please-version`). Don't reformat that line.
+- The version of record is the annotated `versionName` line in `build.gradle.kts`. The
+  annotation is a **trailing comment on the same line**:
+  `versionName = "X.Y.Z" // x-release-please-version`. release-please replaces the
+  semver string on that exact line — don't move the comment to its own line or reformat it.
 - The **backend** is not versioned this way — it deploys continuously with sha-tagged images.
