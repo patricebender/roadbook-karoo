@@ -37,9 +37,28 @@ export PROJECT_ID=roadbook-karoo
 bash deploy/deploy.sh
 ```
 
-Builds the container via Cloud Build and deploys with the cost flags above.
-CI deploys automatically — see `.github/workflows/` (Workload Identity Federation,
-no long-lived keys).
+`deploy.sh` is the manual fallback (builds via Cloud Build). Normally you don't run it —
+CI deploys on every push (below).
+
+## CI/CD (mirrors the sibling `sharp6` project)
+
+- **Backend deploy** — `.github/workflows/deploy-backend.yml` runs on every push to `main`
+  that touches `backend/**`. It authenticates keyless via Workload Identity Federation
+  (no stored keys), builds + pushes the image in the runner, deploys to Cloud Run with the
+  cost flags above, smoke-tests `/health`, and prunes to the 5 most recent SHA-tagged images.
+- **APK release** — `.github/workflows/release.yml` runs on pushes touching `extension/**`,
+  auto-versions as `vYYYY.MM.DD-<sha>`, builds the APK, and publishes a GitHub Release.
+
+### One-time WIF setup
+
+```sh
+PROJECT_ID=roadbook-karoo bash deploy/setup-cicd.sh
+```
+
+Creates the `github-deploy` service account, a Workload Identity Pool + OIDC provider
+**restricted to `patricebender/roadbook-karoo`**, and the impersonation binding. It prints
+the `workload_identity_provider` + `service_account` values already hardcoded in
+`deploy-backend.yml` (they are identifiers, not secrets).
 
 ## Teardown (delete everything)
 

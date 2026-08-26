@@ -1,33 +1,37 @@
 name: Build & Release APK
 
-# Build the extension APK and publish it as a GitHub Release asset when a
-# version tag is pushed (e.g. `v0.1.0`). The Companion app installs from the
-# release asset URL.
+# Auto-release the extension APK whenever the extension changes on main.
+# Version is derived as vYYYY.MM.DD-<short-sha> (monotonic, no manual tagging).
+# The Companion app installs from the release asset URL.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    paths:
+      - "extension/**"
+      - ".github/workflows/release.yml"
   workflow_dispatch: {}
 
 permissions:
-  contents: write   # create releases
+  contents: write   # create releases + tags
   packages: read    # read karoo-ext from GitHub Packages via GITHUB_TOKEN
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: extension
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      - name: Compute version
+        id: ver
+        run: echo "version=v$(date +%Y.%m.%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Build debug APK
+        working-directory: extension
         env:
           # karoo-ext is on GitHub Packages; the automatic token can read it.
           GPR_USER: ${{ github.actor }}
@@ -35,10 +39,13 @@ jobs:
         run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "roadbook-${GITHUB_REF_NAME}.apk"
+        working-directory: extension
+        run: cp app/build/outputs/apk/debug/app-debug.apk "roadbook-${{ steps.ver.outputs.version }}.apk"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.version }}
           files: extension/roadbook-*.apk
           generate_release_notes: true
+          make_latest: true
