@@ -5,72 +5,94 @@ import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.HideSymbols
 import io.hammerhead.karooext.models.MapEffect
-import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.ShowSymbols
 import io.hammerhead.karooext.models.Symbol
 import io.roadbook.karoo.BuildConfig
-import io.roadbook.karoo.util.decodePolyline
+import io.roadbook.karoo.build.BuildController
+import io.roadbook.karoo.data.ConfigStore
+import io.roadbook.karoo.data.Poi
+import io.roadbook.karoo.data.RoadbookRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /**
- * Milestone 1: prove the extension registers, can read the loaded route, and can
- * draw a pin on the native map. When a route is being navigated we drop a single
- * marker at the route's midpoint. No backend, no config yet.
+ * The Roadbook map-layer extension.
+ *
+ * - `onBonusAction("build")` triggers a build for the current route/location.
+ * - `startMap` observes the shared [RoadbookRepository] and draws the built POIs
+ *   as map pins, redrawing whenever a build updates them.
  */
 class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
 
-    private var karooSystem: KarooSystemService? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private lateinit var repository: RoadbookRepository
+    private lateinit var configStore: ConfigStore
 
-    override fun startMap(emitter: Emitter<MapEffect>) {
-        Timber.d("startMap: connecting to Karoo system")
-        val system = KarooSystemService(applicationContext)
-        karooSystem = system
+    override fun onCreate() {
+        super.onCreate()
+        repository = RoadbookRepository.get(applicationContext)
+        configStore = ConfigStore(applicationContext)
+    }
 
-        var consumerId: String? = null
-        system.connect { connected ->
-            Timber.d("Karoo system connected=$connected")
-            if (!connected) return@connect
-            consumerId = system.addConsumer<OnNavigationState> { event ->
-                onNavigationState(event, emitter)
+    override fun onBonusAction(actionId: String) {
+        if (actionId != ACTION_BUILD) return
+        Timber.d("onBonusAction: build")
+        scope.launch {
+            val system = KarooSystemService(applicationContext)
+            system.connect { connected ->
+                if (!connected) return@connect
+                scope.launch {
+                    val controller = BuildController(system, configStore, repository)
+                    controller.runBuild()
+                    system.disconnect()
+                }
             }
-        }
-
-        emitter.setCancellable {
-            Timber.d("startMap: cancelled, tearing down")
-            consumerId?.let { system.removeConsumer(it) }
-            system.disconnect()
-            karooSystem = null
         }
     }
 
-    private fun onNavigationState(event: OnNavigationState, emitter: Emitter<MapEffect>) {
-        when (val state = event.state) {
-            is OnNavigationState.NavigationState.NavigatingRoute -> {
-                val points = decodePolyline(state.routePolyline)
-                if (points.isEmpty()) {
-                    Timber.w("route polyline decoded to 0 points")
-                    return
-                }
-                val mid = points[points.size / 2]
-                Timber.d("route loaded: ${points.size} pts, midpoint=$mid")
-                emitter.onNext(
-                    ShowSymbols(
-                        listOf(
-                            Symbol.POI(
-                                id = "roadbook-test-pin",
-                                lat = mid.first,
-                                lng = mid.second,
-                                type = Symbol.POI.Types.GENERIC,
-                                name = "Roadbook test pin",
-                            ),
-                        ),
-                    ),
-                )
+    override fun startMap(emitter: Emitter<MapEffect>) {
+        Timber.d("startMap: observing roadbook POIs")
+        var shownIds = emptyList<String>()
+
+        val job = repository.pois
+            .onEach { pois ->
+                // Remove any pins no longer present, then show the current set.
+                val newIds = pois.map { it.id }
+                val removed = shownIds - newIds.toSet()
+                if (removed.isNotEmpty()) emitter.onNext(HideSymbols(removed))
+                if (pois.isNotEmpty()) emitter.onNext(ShowSymbols(pois.map { it.toSymbol() }))
+                shownIds = newIds
+                Timber.d("map: drew ${pois.size} POIs")
             }
-            else -> {
-                Timber.d("no active route; hiding test pin")
-                emitter.onNext(HideSymbols(listOf("roadbook-test-pin")))
-            }
+            .launchIn(scope)
+
+        emitter.setCancellable {
+            Timber.d("startMap: cancelled")
+            job.cancel()
         }
+    }
+
+    override fun onDestroy() {
+        scope.cancel()
+        super.onDestroy()
+    }
+
+    private fun Poi.toSymbol(): Symbol.POI = Symbol.POI(
+        id = id,
+        lat = lat,
+        lng = lng,
+        type = type,
+        name = name,
+        distancesAlongRoute = distancesAlongRoute,
+    )
+
+    private companion object {
+        const val ACTION_BUILD = "build"
     }
 }

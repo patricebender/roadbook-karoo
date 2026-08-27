@@ -5,4 +5,8 @@
     id="roadbook"
     scansDevices="false"
     mapLayer="true"
-    fitFile="false" />
+    fitFile="false">
+    <BonusAction
+        actionId="build"
+        displayName="@string/action_build" />
+</ExtensionInfo>

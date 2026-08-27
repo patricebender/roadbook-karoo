@@ -11,7 +11,7 @@ import {
   type Poi,
 } from "./contract.js";
 import { decodePolyline } from "./polyline.js";
-import { buildAlongRoute, buildNearby } from "./overpass.js";
+import { buildAlongRoute, buildNearby } from "./poiStore.js";
 import * as buildStore from "./buildStore.js";
 
 const app = Fastify({ logger: true, trustProxy: true });
@@ -72,7 +72,7 @@ app.post<{ Body: BuildRequest }>("/build/start", async (req, reply) => {
   if (route.length < 2) {
     return reply.code(400).send({ error: "polyline decoded to < 2 points" });
   }
-  const pois = await buildAlongRoute(route, detourMeters, categories);
+  const pois = buildAlongRoute(route, detourMeters, categories);
   return storeAndSummarize(pois);
 });
 
@@ -89,7 +89,7 @@ app.post<{ Body: NearbyRequest }>("/nearby/start", async (req, reply) => {
   if (categories.length === 0) {
     return reply.code(400).send({ error: "at least one valid category required" });
   }
-  const pois = await buildNearby({ lat, lng }, radiusMeters, categories);
+  const pois = buildNearby({ lat, lng }, radiusMeters, categories);
   return storeAndSummarize(pois);
 });
 

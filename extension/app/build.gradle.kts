@@ -16,6 +16,13 @@ android {
         // versionCode: CI injects the monotonic run number; defaults to 1 locally.
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = "0.2.0" // x-release-please-version
+
+        // Backend base URL (public, rate-limited Cloud Run endpoint).
+        buildConfigField(
+            "String",
+            "BACKEND_BASE_URL",
+            "\"https://roadbook-backend-iph3b2qdta-ew.a.run.app\"",
+        )
     }
 
     buildTypes {
@@ -47,6 +54,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.datastore.preferences)
 
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)

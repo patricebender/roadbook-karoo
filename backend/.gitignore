@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.log
 .env
+
+# POI pipeline scratch (the big OSM extract + intermediate files).
+data-pipeline/work/

@@ -47,3 +47,18 @@ export function resolveType(
   }
   return null;
 }
+
+/** Every tag rule, tagged with the Category it belongs to. Used by the pipeline. */
+export const ALL_RULES: Array<TagRule & { category: Category }> = (
+  Object.entries(CATEGORY_RULES) as [Category, TagRule[]][]
+).flatMap(([category, rules]) => rules.map((r) => ({ ...r, category })));
+
+/** Resolve OSM tags to our {type, category}, or null if none match. */
+export function resolvePoi(
+  tags: Record<string, string>,
+): { type: PoiType; category: Category } | null {
+  for (const r of ALL_RULES) {
+    if (tags[r.key] === r.value) return { type: r.type, category: r.category };
+  }
+  return null;
+}

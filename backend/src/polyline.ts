@@ -40,12 +40,35 @@ export function decodePolyline(encoded: string, precision = 5): LatLng[] {
 }
 
 /**
- * Downsample route points so the Overpass query stays small. We only need enough
- * points that consecutive `around` circles (radius = detour) overlap and cover
- * the corridor. Keep a point roughly every `stepMeters`.
+ * Sample the route into `around`-query anchor points that cover the whole
+ * corridor with no gaps, while keeping the query bounded.
+ *
+ * Coverage: each anchor searches a circle of `radius`. Two consecutive circles
+ * whose centers are on the route cover the strip between them (out to `radius`
+ * either side) as long as the spacing is <= radius*sqrt(3) — the point where the
+ * circles stop overlapping over the route line. We use that max spacing so we
+ * emit the fewest anchors that still miss no POIs within `radius` of the route.
+ *
+ * Bound: a very long route would still produce too many anchors for one Overpass
+ * query, so we cap at `maxPoints`, widening spacing to fit. (Only extreme routes
+ * hit this; then the corridor is sampled slightly sparser but the query stays
+ * fast and valid.)
  */
-export function downsample(points: LatLng[], stepMeters: number): LatLng[] {
+const COVERAGE_SPACING_FACTOR = 1.7; // ~sqrt(3), no-gap coverage
+
+export function sampleCorridor(
+  points: LatLng[],
+  radiusMeters: number,
+  maxPoints = 40,
+): LatLng[] {
   if (points.length <= 2) return points;
+  const total = routeLength(points);
+  // Max no-gap spacing; widen further only if needed to stay under the cap.
+  const stepMeters = Math.max(
+    radiusMeters * COVERAGE_SPACING_FACTOR,
+    total / maxPoints,
+  );
+
   const kept: LatLng[] = [points[0]!];
   let acc = 0;
   for (let i = 1; i < points.length; i++) {
@@ -58,6 +81,13 @@ export function downsample(points: LatLng[], stepMeters: number): LatLng[] {
   const last = points[points.length - 1]!;
   if (kept[kept.length - 1] !== last) kept.push(last);
   return kept;
+}
+
+/** Total length of a route in meters. */
+export function routeLength(points: LatLng[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) total += haversine(points[i - 1]!, points[i]!);
+  return total;
 }
 
 /** Great-circle distance in meters. */
@@ -90,6 +120,46 @@ export function nearestAlongRoute(
     if (d < best) {
       best = d;
       bestAlong = cumulative[i]!;
+    }
+  }
+  return { distanceToRoute: best, distanceAlong: bestAlong };
+}
+
+/**
+ * Distance (meters) from point `p` to the route polyline, measured against the
+ * nearest *segment* (not just vertices), plus the cumulative route distance at
+ * the closest point. Exact enough for corridor membership + "distance along".
+ *
+ * Uses a local equirectangular projection (meters) around `p`; fine at the
+ * scale of a detour radius.
+ */
+export function distanceToRoute(
+  route: LatLng[],
+  cumulative: number[],
+  p: LatLng,
+): { distanceToRoute: number; distanceAlong: number } {
+  const mPerDegLat = 111_320;
+  const mPerDegLng = 111_320 * Math.cos(toRad(p.lat));
+  const px = p.lng * mPerDegLng;
+  const py = p.lat * mPerDegLat;
+
+  let best = Infinity;
+  let bestAlong = 0;
+  for (let i = 1; i < route.length; i++) {
+    const a = route[i - 1]!;
+    const b = route[i]!;
+    const ax = a.lng * mPerDegLng, ay = a.lat * mPerDegLat;
+    const bx = b.lng * mPerDegLng, by = b.lat * mPerDegLat;
+    const dx = bx - ax, dy = by - ay;
+    const segLen2 = dx * dx + dy * dy;
+    // Projection factor t of p onto segment [a,b], clamped to the segment.
+    const t = segLen2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / segLen2));
+    const cx = ax + t * dx, cy = ay + t * dy;
+    const d = Math.hypot(px - cx, py - cy);
+    if (d < best) {
+      best = d;
+      // cumulative at vertex a + distance from a to the projection point.
+      bestAlong = cumulative[i - 1]! + Math.hypot(cx - ax, cy - ay);
     }
   }
   return { distanceToRoute: best, distanceAlong: bestAlong };
