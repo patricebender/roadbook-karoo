@@ -20,6 +20,12 @@ interface GeoJsonFeature {
   properties: Record<string, string>;
 }
 
+// Types worth keeping even when unnamed — given a generic label instead of dropping.
+const DEFAULT_NAME: Record<string, string> = {
+  REST_STOP: "Water", // amenity=drinking_water
+  RESTROOM: "Toilet", // amenity=toilets
+};
+
 /** Representative [lng, lat] for a feature: point directly, else polygon/line centroid. */
 function representativePoint(geom: GeoJsonFeature["geometry"]): [number, number] | null {
   const c = geom.coordinates;
@@ -47,7 +53,9 @@ async function main() {
   }
 
   const db = new Database(output);
-  db.pragma("journal_mode = WAL");
+  // DELETE journal (not WAL): the output is a self-contained file meant to be
+  // copied/bundled as a read-only asset, with no -wal/-shm sidecars.
+  db.pragma("journal_mode = DELETE");
   db.exec(`
     DROP TABLE IF EXISTS poi;
     DROP TABLE IF EXISTS poi_rtree;
@@ -87,20 +95,26 @@ async function main() {
         continue;
       }
       const [lng, lat] = pt;
+
+      // Quality filter: drop unnamed POIs (they render as a meaningless "Pin"),
+      // EXCEPT water/toilets which are useful even without a name — give those a
+      // generic label. This is the biggest lever against map clutter.
+      const rawName = f.properties["name"] ?? null;
+      let name = rawName;
+      if (rawName == null) {
+        name = DEFAULT_NAME[resolved.type] ?? null;
+        if (name == null) {
+          skipped++;
+          continue; // unnamed and not a labelable type → drop
+        }
+      }
+
       const osmId = String(f.id ?? `${lat},${lng}`);
       if (seen.has(osmId)) continue;
       seen.add(osmId);
 
       rowId++;
-      insertPoi.run(
-        rowId,
-        osmId,
-        lat,
-        lng,
-        resolved.type,
-        resolved.category,
-        f.properties["name"] ?? null,
-      );
+      insertPoi.run(rowId, osmId, lat, lng, resolved.type, resolved.category, name);
       insertRtree.run(rowId, lat, lat, lng, lng);
     }
   });

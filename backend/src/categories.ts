@@ -27,7 +27,7 @@ export const CATEGORY_RULES: Record<Category, TagRule[]> = {
   ],
   bike: [
     { key: "shop", value: "bicycle", type: "BIKE_SHOP" },
-    { key: "amenity", value: "bicycle_parking", type: "BIKE_PARKING" },
+    // bicycle_parking removed: ~28k mostly-unnamed points, pure map clutter.
   ],
   fuel: [{ key: "amenity", value: "fuel", type: "GAS_STATION" }],
 };
