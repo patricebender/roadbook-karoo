@@ -75,7 +75,7 @@ jobs:
             --concurrency 20 \
             --cpu 1 \
             --memory 256Mi \
-            --timeout 30s \
+            --timeout 60s \
             --cpu-throttling \
             --no-cpu-boost \
             --set-env-vars "NODE_ENV=production" \

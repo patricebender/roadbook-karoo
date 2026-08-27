@@ -58,3 +58,37 @@ export interface NearbyRequest {
 export interface BuildResponse {
   pois: Poi[];
 }
+
+// ---- Chunked build protocol ----
+// The Karoo HTTP bridge caps a response at 100K, so builds are delivered in pages.
+// 1) POST /build/start → compute + store, return the handle below.
+// 2) GET /build/:id/page/:n → a page of (trimmed) POIs, each well under 100K.
+
+/** Response to POST /build/start (and /nearby/start). Small; just metadata. */
+export interface BuildStartResponse {
+  buildId: string;
+  totalCount: number;
+  pageSize: number;
+  pageCount: number;
+}
+
+/**
+ * Minimal POI shape sent in pages — only what the map needs. Heavy `tags` are
+ * kept server-side and omitted here to stay under the size cap.
+ */
+export interface PagePoi {
+  id: string;
+  lat: number;
+  lng: number;
+  type: PoiType;
+  name: string | null;
+  distancesAlongRoute: number[];
+}
+
+export interface BuildPageResponse {
+  page: number;
+  pois: PagePoi[];
+}
+
+/** POIs per page — sized so a page stays comfortably under the 100K cap. */
+export const PAGE_SIZE = 250;

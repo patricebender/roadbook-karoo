@@ -27,7 +27,7 @@ gcloud run deploy "$SERVICE" \
   --concurrency=20 \
   --cpu=1 \
   --memory=256Mi \
-  --timeout=30s \
+  --timeout=60s \
   --cpu-throttling \
   --set-env-vars="NODE_ENV=production"
 
