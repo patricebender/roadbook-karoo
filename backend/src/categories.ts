@@ -21,8 +21,10 @@ export const CATEGORY_RULES: Record<Category, TagRule[]> = {
     { key: "shop", value: "convenience", type: "CONVENIENCE_STORE" },
     { key: "shop", value: "supermarket", type: "CONVENIENCE_STORE" },
   ],
-  water_restroom: [
+  water: [
     { key: "amenity", value: "drinking_water", type: "REST_STOP" },
+  ],
+  toilet: [
     { key: "amenity", value: "toilets", type: "RESTROOM" },
   ],
   bike: [

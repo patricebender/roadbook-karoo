@@ -17,6 +17,11 @@ android {
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = "0.2.0" // x-release-please-version
 
+        // Karoo is arm64 — only ship that ABI of the bundled SQLite native lib.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+
         // Backend base URL (public, rate-limited Cloud Run endpoint).
         buildConfigField(
             "String",
@@ -55,6 +60,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.sqlite.android)
 
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)

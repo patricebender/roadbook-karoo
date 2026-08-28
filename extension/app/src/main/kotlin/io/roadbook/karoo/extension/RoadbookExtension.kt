@@ -11,6 +11,8 @@ import io.roadbook.karoo.BuildConfig
 import io.roadbook.karoo.build.BuildController
 import io.roadbook.karoo.data.ConfigStore
 import io.roadbook.karoo.data.Poi
+import io.roadbook.karoo.data.PoiDatabase
+import io.roadbook.karoo.data.PoiQuery
 import io.roadbook.karoo.data.RoadbookRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,11 +35,13 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var repository: RoadbookRepository
     private lateinit var configStore: ConfigStore
+    private lateinit var query: PoiQuery
 
     override fun onCreate() {
         super.onCreate()
         repository = RoadbookRepository.get(applicationContext)
         configStore = ConfigStore(applicationContext)
+        query = PoiQuery(PoiDatabase.get(applicationContext))
     }
 
     override fun onBonusAction(actionId: String) {
@@ -48,7 +52,7 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
             system.connect { connected ->
                 if (!connected) return@connect
                 scope.launch {
-                    val controller = BuildController(system, configStore, repository)
+                    val controller = BuildController(system, configStore, repository, query)
                     controller.runBuild()
                     system.disconnect()
                 }
@@ -87,10 +91,27 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
         id = id,
         lat = lat,
         lng = lng,
-        type = type,
+        type = symbolType(type),
         name = name,
         distancesAlongRoute = distancesAlongRoute,
     )
+
+    /**
+     * Map our POI type strings to karoo-ext [Symbol.POI.Types] constants (which
+     * are lowercase). A mismatch renders the generic pin icon, so this must stay
+     * aligned with the DB's `type` values.
+     */
+    private fun symbolType(type: String): String = when (type) {
+        "COFFEE" -> Symbol.POI.Types.COFFEE
+        "FOOD" -> Symbol.POI.Types.FOOD
+        "BAR" -> Symbol.POI.Types.BAR
+        "CONVENIENCE_STORE" -> Symbol.POI.Types.CONVENIENCE_STORE
+        "REST_STOP" -> Symbol.POI.Types.WATER      // drinking water → water icon
+        "RESTROOM" -> Symbol.POI.Types.RESTROOM
+        "BIKE_SHOP" -> Symbol.POI.Types.BIKE_SHOP
+        "GAS_STATION" -> Symbol.POI.Types.GAS_STATION
+        else -> Symbol.POI.Types.GENERIC
+    }
 
     private companion object {
         const val ACTION_BUILD = "build"

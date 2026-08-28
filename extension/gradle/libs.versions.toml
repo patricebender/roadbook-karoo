@@ -26,6 +26,9 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", vers
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.6.3" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version = "1.1.1" }
+# Bundled SQLite with R*Tree (Android's built-in SQLite may omit the RTREE module).
+# Published on JitPack, hence the com.github.requery group.
+sqlite-android = { module = "com.github.requery:sqlite-android", version = "3.49.0" }
 timber = { module = "com.jakewharton.timber:timber", version = "5.0.1" }
 
 [plugins]

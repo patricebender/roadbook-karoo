@@ -17,6 +17,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // requery/sqlite-android is published on JitPack.
+        maven { url = uri("https://jitpack.io") }
         // karoo-ext is published to GitHub Packages (auth required even though public).
         // Provide gpr.user / gpr.key in ~/.gradle/gradle.properties.
         maven {

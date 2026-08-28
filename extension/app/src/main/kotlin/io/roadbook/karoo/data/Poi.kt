@@ -17,19 +17,3 @@ data class Poi(
     val distancesAlongRoute: List<Double> = emptyList(),
     val tags: Map<String, String> = emptyMap(),
 )
-
-/** Response to POST /build/start — metadata to page through the result. */
-@Serializable
-data class BuildStartResponse(
-    val buildId: String,
-    val totalCount: Int,
-    val pageSize: Int,
-    val pageCount: Int,
-)
-
-/** One page of POIs from GET /build/:id/page/:n. */
-@Serializable
-data class BuildPageResponse(
-    val page: Int,
-    val pois: List<Poi> = emptyList(),
-)

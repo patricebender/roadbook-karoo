@@ -5,3 +5,7 @@ dist/
 
 # POI pipeline scratch (the big OSM extract + intermediate files).
 data-pipeline/work/
+
+# POI database (built by data-pipeline; delivery strategy TBD)
+pois.sqlite
+pois.sqlite-*

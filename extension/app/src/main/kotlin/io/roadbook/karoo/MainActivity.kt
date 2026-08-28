@@ -35,19 +35,24 @@ import io.roadbook.karoo.build.BuildController
 import io.roadbook.karoo.build.BuildState
 import io.roadbook.karoo.data.Category
 import io.roadbook.karoo.data.ConfigStore
+import io.roadbook.karoo.data.PoiDatabase
+import io.roadbook.karoo.data.PoiQuery
 import io.roadbook.karoo.data.RoadbookConfig
 import io.roadbook.karoo.data.RoadbookRepository
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var configStore: ConfigStore
     private lateinit var repository: RoadbookRepository
+    private lateinit var query: PoiQuery
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configStore = ConfigStore(applicationContext)
         repository = RoadbookRepository.get(applicationContext)
+        query = PoiQuery(PoiDatabase.get(applicationContext))
 
         setContent {
             MaterialTheme {
@@ -68,7 +73,7 @@ class MainActivity : ComponentActivity() {
 
     /** Build from the app by spinning up a short-lived Karoo connection. */
     private fun runBuild() {
-        repository.setBuildState(BuildState.Building(total = null, loaded = 0))
+        repository.setBuildState(BuildState.Building("Connecting…"))
         val system = KarooSystemService(applicationContext)
         system.connect { connected ->
             if (!connected) {
@@ -76,7 +81,7 @@ class MainActivity : ComponentActivity() {
                 return@connect
             }
             lifecycleScope.launch {
-                BuildController(system, configStore, repository).runBuild()
+                BuildController(system, configStore, repository, query).runBuild()
                 system.disconnect()
             }
         }
@@ -104,11 +109,23 @@ private fun ConfigScreen(
         Text("Roadbook", style = MaterialTheme.typography.headlineSmall)
         Spacer(Modifier.height(16.dp))
 
-        Text("Detour radius: ${config.detourMeters} m")
+        val radiusLabel = if (config.detourMeters >= 1000) {
+            "%.1f km".format(config.detourMeters / 1000.0)
+        } else {
+            "${config.detourMeters} m"
+        }
+        Text("Detour radius: $radiusLabel")
         Slider(
             value = config.detourMeters.toFloat(),
-            onValueChange = { onDetourChange(it.toInt()) },
+            onValueChange = { raw ->
+                // Snap to 500 m steps.
+                val step = RoadbookConfig.DETOUR_STEP_METERS
+                onDetourChange((raw / step).roundToInt() * step)
+            },
             valueRange = RoadbookConfig.MIN_DETOUR_METERS.toFloat()..RoadbookConfig.MAX_DETOUR_METERS.toFloat(),
+            // Discrete stops between min and max at 500 m each.
+            steps = (RoadbookConfig.MAX_DETOUR_METERS - RoadbookConfig.MIN_DETOUR_METERS) /
+                RoadbookConfig.DETOUR_STEP_METERS - 1,
             enabled = !building,
         )
         Spacer(Modifier.height(16.dp))
@@ -150,18 +167,10 @@ private fun BuildStatus(state: BuildState) {
 
         is BuildState.Building -> Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            Spacer(Modifier.height(0.dp))
-            Text(
-                text = if (state.total == null) {
-                    "  Building…"
-                } else {
-                    "  Loading ${state.loaded} / ${state.total} POIs…"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text("  ${state.phase}", style = MaterialTheme.typography.bodyMedium)
         }
 
-        is BuildState.Success -> {
+        is BuildState.Success -> Column {
             val ago = DateUtils.getRelativeTimeSpanString(
                 state.atEpochMs,
                 System.currentTimeMillis(),
@@ -169,8 +178,17 @@ private fun BuildStatus(state: BuildState) {
             )
             Text(
                 "${state.count} POIs · $ago",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleSmall,
             )
+            // Per-category breakdown, in enum order for stable layout.
+            val parts = Category.entries
+                .mapNotNull { c -> state.byCategory[c]?.let { "${c.label}: $it" } }
+            if (parts.isNotEmpty()) {
+                Text(
+                    parts.joinToString("  ·  "),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
 
         is BuildState.Error -> Text(

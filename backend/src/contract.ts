@@ -3,11 +3,12 @@
 // karoo-ext Symbol.POI.Types so the extension can render them directly as map pins.
 
 /** POI category toggles the rider switches on/off when building. */
-export type Category = "food_drink" | "water_restroom" | "bike" | "fuel";
+export type Category = "food_drink" | "water" | "toilet" | "bike" | "fuel";
 
 export const ALL_CATEGORIES: Category[] = [
   "food_drink",
-  "water_restroom",
+  "water",
+  "toilet",
   "bike",
   "fuel",
 ];
