@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.LocalBar
 import androidx.compose.material.icons.filled.LocalCafe
+import androidx.compose.material.icons.filled.Icecream
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Restaurant
@@ -31,6 +32,7 @@ private val WATER = Color(0xFF0097A7)
 private val TOILET = Color(0xFF6A1B9A)
 private val BIKE = Color(0xFF2E7D32)
 private val FUEL = Color(0xFF455A64)
+private val ICE_CREAM = Color(0xFFE91E63)
 
 private val STYLES: Map<String, CategoryStyle> = mapOf(
     "FOOD" to CategoryStyle(RESTAURANT, Icons.Filled.Restaurant, "Restaurant"),
@@ -41,6 +43,7 @@ private val STYLES: Map<String, CategoryStyle> = mapOf(
     "RESTROOM" to CategoryStyle(TOILET, Icons.Filled.Wc, "Toilet"),
     "BIKE_SHOP" to CategoryStyle(BIKE, Icons.AutoMirrored.Filled.DirectionsBike, "Bike shop"),
     "GAS_STATION" to CategoryStyle(FUEL, Icons.Filled.LocalGasStation, "Gas station"),
+    "ICE_CREAM" to CategoryStyle(ICE_CREAM, Icons.Filled.Icecream, "Ice cream"),
 )
 
 private val FALLBACK = CategoryStyle(Color(0xFF757575), Icons.Filled.Place, "Place")

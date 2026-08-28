@@ -1,5 +1,6 @@
 package io.roadbook.karoo.ui
 
+import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,9 +17,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,21 +36,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.roadbook.karoo.build.BuildState
 import io.roadbook.karoo.data.OpeningHours
 import io.roadbook.karoo.data.Poi
 import java.util.Calendar
 
+// Neutral tint for the "hours exist but are seasonal/complex" chip.
+private val SeasonalGrey = Color(0xFF757575)
+
 /**
- * The Waybook ROUTE view: a header with a filter shortcut, the route distance strip,
- * and a scrollable list of the POIs found along the route. Tapping a row opens the
- * place detail. Mirrors the mockup.
+ * The Waybook ROUTE view: a header with build/clear/filter shortcuts and a live build
+ * status line, the route distance strip, and a scrollable list of the POIs found along
+ * the route. Tapping a row opens the place detail.
  */
 @Composable
 fun WaybookScreen(
     pois: List<Poi>,
     routeLengthMeters: Double,
+    buildState: BuildState,
+    onBuild: () -> Unit,
+    onClear: () -> Unit,
     onOpenFilter: () -> Unit,
     onOpenPoi: (Poi) -> Unit,
     // Resolves a POI's hours (OSM, or a Google result already fetched this session) so
@@ -54,7 +68,14 @@ fun WaybookScreen(
     listState: LazyListState,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Header(count = pois.size, onOpenFilter = onOpenFilter)
+        Header(
+            count = pois.size,
+            buildState = buildState,
+            hasPins = pois.isNotEmpty(),
+            onBuild = onBuild,
+            onClear = onClear,
+            onOpenFilter = onOpenFilter,
+        )
         HorizontalDivider()
 
         if (pois.isEmpty()) {
@@ -80,27 +101,98 @@ fun WaybookScreen(
 }
 
 @Composable
-private fun Header(count: Int, onOpenFilter: () -> Unit) {
+private fun Header(
+    count: Int,
+    buildState: BuildState,
+    hasPins: Boolean,
+    onBuild: () -> Unit,
+    onClear: () -> Unit,
+    onOpenFilter: () -> Unit,
+) {
+    val building = buildState is BuildState.Building
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column {
-            Text("Waybook", style = MaterialTheme.typography.headlineSmall)
-            if (count > 0) {
-                Text(
-                    "$count places",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        // Logo mark only — no wordmark. The status line carries the context.
+        Icon(
+            Icons.Filled.Place,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(Modifier.size(10.dp))
+        Box(modifier = Modifier.weight(1f)) {
+            BuildStatusLine(buildState, count)
+        }
+        // Build/rebuild: primary tint when there's work, muted after a build. While
+        // building the icon just goes disabled — the single spinner lives in the
+        // status line, so we never show two spinners at once.
+        IconButton(onClick = onBuild, enabled = !building) {
+            Icon(
+                Icons.Filled.Refresh,
+                contentDescription = "Build",
+                tint = when {
+                    building -> MaterialTheme.colorScheme.onSurfaceVariant
+                    buildState is BuildState.Success -> MaterialTheme.colorScheme.onSurfaceVariant
+                    else -> MaterialTheme.colorScheme.primary
+                },
+            )
+        }
+        if (hasPins) {
+            IconButton(onClick = onClear, enabled = !building) {
+                Icon(Icons.Filled.Delete, contentDescription = "Clear")
             }
         }
         IconButton(onClick = onOpenFilter) {
             Icon(Icons.Filled.Tune, contentDescription = "Filter")
         }
+    }
+}
+
+/** The header's primary line: reflects the build lifecycle so the screen self-documents. */
+@Composable
+private fun BuildStatusLine(state: BuildState, count: Int) {
+    when (state) {
+        is BuildState.Building -> Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.size(8.dp))
+            Text(
+                state.phase,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        is BuildState.Success -> Text(
+            "${state.count} places",
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        is BuildState.Error -> Text(
+            state.message,
+            style = MaterialTheme.typography.titleMedium,
+            color = ClosedRed,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+
+        is BuildState.Idle -> Text(
+            if (count > 0) "$count places" else "No places — build to start",
+            style = MaterialTheme.typography.titleMedium,
+            color = if (count > 0) {
+                MaterialTheme.colorScheme.onSurface
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -141,9 +233,9 @@ private fun PoiRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            // Line 2: "Café · Open" / "Gas station · Closed · opens 06:00" / "Gas station".
+            // Line 2: type + status badge. Line 3 (when closed): "opens Mon 08:00".
             TypeAndStatusLine(hours = hours, typeLabel = style.label)
-            // Line 3: detour (only meaningful along a route).
+            // Detour (only meaningful along a route).
             if (hasRoute && poi.detourMeters > 0) {
                 Text(
                     "detour ${formatDistance(poi.detourMeters)}",
@@ -161,42 +253,65 @@ private fun PoiRow(
     }
 }
 
-/** "Café · Open", "Gas station · Closed · opens 06:00", or just "Gas station". */
+/**
+ * Type label + a status chip on one line; when closed, the "opens …" text drops to its
+ * own line so it stays readable on the narrow display instead of truncating.
+ */
 @Composable
 private fun TypeAndStatusLine(hours: OpeningHours.Hours?, typeLabel: String) {
     val status = remember(hours) { hours?.status() }
+    // Hours exist but couldn't be structured (seasonal/complex) → flag without claiming.
+    val seasonal = hours?.rawFallback != null
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            typeLabel,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        when (status?.state) {
-            OpeningHours.OpenState.OPEN -> StatusText(" · Open", OpenGreen)
-            OpeningHours.OpenState.CLOSED -> {
-                StatusText(" · Closed", ClosedRed)
-                status.opensAtLabel(todayIndex())?.let { label ->
-                    Text(
-                        " · $label",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                typeLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.size(8.dp))
+            when {
+                seasonal -> StatusChip("Seasonal", SeasonalGrey)
+                status?.state == OpeningHours.OpenState.OPEN -> StatusChip("Open", OpenGreen)
+                status?.state == OpeningHours.OpenState.CLOSED -> StatusChip("Closed", ClosedRed)
+                // UNKNOWN or no hours: type only, no status claim.
+                else -> Unit
             }
-            // UNKNOWN or no hours tag: type only, no status claim.
-            else -> Unit
+        }
+        if (status?.state == OpeningHours.OpenState.CLOSED) {
+            status.opensAtLabel(todayIndex())?.let { label ->
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
 
+/** A small filled status pill (Open / Closed / Seasonal). */
 @Composable
-private fun StatusText(text: String, color: Color) {
-    Text(text, style = MaterialTheme.typography.bodyMedium, color = color, maxLines = 1)
+private fun StatusChip(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(color)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+    ) {
+        Text(
+            text,
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+        )
+    }
 }
 
 @Composable
@@ -214,7 +329,7 @@ private fun EmptyState(onOpenFilter: () -> Unit) {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Load a route on the Karoo, then build your roadbook from the filter screen.",
+            "Load a route on the Karoo, then tap the build icon above.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -225,7 +340,7 @@ private fun EmptyState(onOpenFilter: () -> Unit) {
         ) {
             Icon(Icons.Filled.Tune, contentDescription = null)
             Spacer(Modifier.size(8.dp))
-            Text("Open filter & build", style = MaterialTheme.typography.titleSmall)
+            Text("Open filter", style = MaterialTheme.typography.titleSmall)
         }
     }
 }

@@ -11,7 +11,8 @@ enum class Category(val id: String, val label: String) {
     WATER("water", "Water"),
     TOILET("toilet", "Toilets"),
     BIKE("bike", "Bike shops"),
-    FUEL("fuel", "Fuel stations");
+    FUEL("fuel", "Fuel stations"),
+    ICE_CREAM("ice_cream", "Ice Cream");
 
     companion object {
         /** Map a POI `type` (as stored in the DB) back to its category. */
@@ -23,6 +24,7 @@ enum class Category(val id: String, val label: String) {
             "RESTROOM" -> TOILET
             "BIKE_SHOP" -> BIKE
             "GAS_STATION" -> FUEL
+            "ICE_CREAM" -> ICE_CREAM
             else -> null
         }
     }
@@ -32,7 +34,7 @@ enum class Category(val id: String, val label: String) {
 data class RoadbookConfig(
     /** Detour search radius around the route, in meters. */
     val detourMeters: Int = DEFAULT_DETOUR_METERS,
-    val enabledCategories: Set<Category> = Category.entries.toSet(),
+    val enabledCategories: Set<Category> = setOf(Category.WATER, Category.BIKE),
 ) {
     companion object {
         const val DEFAULT_DETOUR_METERS = 500

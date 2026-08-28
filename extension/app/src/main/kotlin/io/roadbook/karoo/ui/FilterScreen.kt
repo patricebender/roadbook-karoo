@@ -27,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import io.roadbook.karoo.build.BuildState
 import io.roadbook.karoo.data.Category
@@ -35,9 +34,9 @@ import io.roadbook.karoo.data.RoadbookConfig
 import kotlin.math.roundToInt
 
 /**
- * Filter & build settings, reachable from the Waybook header filter icon. Holds the
- * detour radius and category toggles (moved off the main view per the mockup) plus
- * the Build/Clear actions and build status.
+ * Filter & build settings, reachable from the Waybook header filter icon. The Build
+ * action lives in the top bar (always visible, no scroll needed) with the build status
+ * right below it; detour radius and category toggles follow; Clear sits at the bottom.
  */
 @Composable
 fun FilterScreen(
@@ -53,22 +52,48 @@ fun FilterScreen(
     val building = buildState is BuildState.Building
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // Top bar: back + title + the primary Build action, always on screen.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(start = 8.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+                Text("Filter", style = MaterialTheme.typography.titleLarge)
             }
-            Text("Filter & build", style = MaterialTheme.typography.titleLarge)
+            Button(onClick = onBuild, enabled = !building) {
+                if (building) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text(
+                        if (buildState is BuildState.Success || buildState is BuildState.Error) {
+                            "Rebuild"
+                        } else {
+                            "Build"
+                        },
+                    )
+                }
+            }
         }
+
+        // Build status, directly under the action that produces it.
+        BuildStatus(
+            buildState,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
         HorizontalDivider()
 
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
         ) {
@@ -102,55 +127,42 @@ fun FilterScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(24.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Button(
-                    onClick = onBuild,
+            if (hasPins) {
+                Spacer(Modifier.height(24.dp))
+                OutlinedButton(
+                    onClick = onClear,
                     enabled = !building,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
-                        if (buildState is BuildState.Success || buildState is BuildState.Error) {
-                            "Rebuild"
-                        } else {
-                            "Build now"
-                        },
-                    )
-                }
-                if (hasPins) {
-                    OutlinedButton(onClick = onClear, enabled = !building) {
-                        Text("Clear")
-                    }
+                    Text("Clear all places")
                 }
             }
-
-            Spacer(Modifier.height(16.dp))
-            BuildStatus(buildState)
         }
     }
 }
 
 @Composable
-private fun BuildStatus(state: BuildState) {
+private fun BuildStatus(state: BuildState, modifier: Modifier = Modifier) {
     when (state) {
         is BuildState.Idle -> Unit
 
-        is BuildState.Building -> Row(verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            Text("  ${state.phase}", style = MaterialTheme.typography.bodyMedium)
+        is BuildState.Building -> Row(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.size(8.dp))
+            Text(state.phase, style = MaterialTheme.typography.bodyMedium)
         }
 
-        is BuildState.Success -> Column {
+        is BuildState.Success -> Column(modifier = modifier) {
             val ago = DateUtils.getRelativeTimeSpanString(
                 state.atEpochMs,
                 System.currentTimeMillis(),
                 DateUtils.MINUTE_IN_MILLIS,
             )
-            Text("${state.count} POIs · $ago", style = MaterialTheme.typography.titleSmall)
+            Text("${state.count} places · $ago", style = MaterialTheme.typography.titleSmall)
             val parts = Category.entries
                 .mapNotNull { c -> state.byCategory[c]?.let { "${c.label}: $it" } }
             if (parts.isNotEmpty()) {
@@ -160,8 +172,9 @@ private fun BuildStatus(state: BuildState) {
 
         is BuildState.Error -> Text(
             state.message,
-            color = Color(0xFFB00020),
+            color = ClosedRed,
             style = MaterialTheme.typography.bodyMedium,
+            modifier = modifier,
         )
     }
 }

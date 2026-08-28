@@ -54,7 +54,7 @@ class PoiDatabase private constructor(private val dbFile: File) {
         // Version of the bundled asset. Bump in lockstep with `user_version` set by
         // the data pipeline whenever the schema/tags change, so existing installs
         // re-seed instead of running against a stale DB missing the new columns.
-        private const val BUNDLED_DB_VERSION = 3
+        private const val BUNDLED_DB_VERSION = 4
 
         @Volatile
         private var instance: PoiDatabase? = null

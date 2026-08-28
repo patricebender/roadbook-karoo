@@ -32,6 +32,10 @@ androidx-datastore-preferences = { module = "androidx.datastore:datastore-prefer
 # Published on JitPack, hence the com.github.requery group.
 sqlite-android = { module = "com.github.requery:sqlite-android", version = "3.49.0" }
 timber = { module = "com.jakewharton.timber:timber", version = "5.0.1" }
+# Compose-native QR code rendering for the detail screen website. Pinned to 1.0.1:
+# 1.1.0+ is compiled with Kotlin 2.3.0, whose metadata the project's 2.0.0 compiler
+# can't read.
+qrose = { module = "io.github.alexzhirkevich:qrose", version = "1.0.1" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

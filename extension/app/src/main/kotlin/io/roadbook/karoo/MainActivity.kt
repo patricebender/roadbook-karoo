@@ -79,6 +79,12 @@ class MainActivity : ComponentActivity() {
             is Screen.Waybook -> WaybookScreen(
                 pois = pois,
                 routeLengthMeters = routeLength,
+                buildState = buildState,
+                onBuild = ::runBuild,
+                onClear = {
+                    repository.clear()
+                    repository.setBuildState(BuildState.Idle)
+                },
                 onOpenFilter = { screen = Screen.Filter },
                 onOpenPoi = { screen = Screen.Detail(it.id) },
                 // OSM hours, or a Google result already fetched this session → badge in list.
@@ -197,6 +203,7 @@ class MainActivity : ComponentActivity() {
         // Categories where opening hours matter enough to spend a Google lookup.
         val GOOGLE_HOURS_CATEGORIES = setOf(
             Category.SUPERMARKETS, Category.CAFE_BAR, Category.RESTAURANTS, Category.FUEL,
+            Category.ICE_CREAM,
         )
     }
 }

@@ -60,6 +60,7 @@ android {
 dependencies {
     implementation(libs.karoo.ext)
     implementation(libs.timber)
+    implementation(libs.qrose)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

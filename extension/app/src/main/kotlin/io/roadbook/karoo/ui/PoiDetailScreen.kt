@@ -1,5 +1,9 @@
 package io.roadbook.karoo.ui
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,18 +39,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import io.github.alexzhirkevich.qrose.rememberQrCodePainter
 import io.roadbook.karoo.data.OpeningHours
 import io.roadbook.karoo.data.PlacesClient
 import io.roadbook.karoo.data.Poi
 import kotlinx.coroutines.launch
 
+// Neutral tint for the "hours exist but are seasonal/complex" badge.
+private val SeasonalGrey = Color(0xFF757575)
+
 /**
  * Place detail: hours + "open now" from OSM `opening_hours`, contact info, distance
- * along the route, and an on-demand Wikipedia description. The description is loaded
- * via [loadDescription] (routed through the Karoo HTTP bridge, so it works over the
- * paired phone, not just WiFi); everything else is fully offline from the DB tags.
+ * along the route, a Navigate action, a scannable website QR, and an on-demand
+ * Wikipedia description. The description is loaded via [loadDescription] (routed through
+ * the Karoo HTTP bridge, so it works over the paired phone, not just WiFi); everything
+ * else is fully offline from the DB tags.
  */
 @Composable
 fun PoiDetailScreen(
@@ -61,6 +71,7 @@ fun PoiDetailScreen(
     onBack: () -> Unit,
 ) {
     val style = styleForType(poi.type)
+    val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -95,13 +106,13 @@ fun PoiDetailScreen(
             Spacer(Modifier.height(8.dp))
 
             // At-a-glance route context.
-            val context = buildList {
+            val routeContext = buildList {
                 poi.distancesAlongRoute.firstOrNull()?.let { add("at ${formatDistance(it)}") }
                 if (hasRoute && poi.detourMeters > 0) add("detour ${formatDistance(poi.detourMeters)}")
             }.joinToString(" · ")
-            if (context.isNotEmpty()) {
+            if (routeContext.isNotEmpty()) {
                 Text(
-                    context,
+                    routeContext,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -114,13 +125,14 @@ fun PoiDetailScreen(
             OpeningHoursSection(poi.tags["opening_hours"], cachedGoogleHours, loadGoogleHours)
             Spacer(Modifier.height(16.dp))
 
-            // Contact rows (wheelchair intentionally omitted — irrelevant on a bike).
-            val contactRows = buildList {
-                poi.tags["phone"]?.let { add("Phone" to it) }
-                poi.tags["website"]?.let { add("Website" to it) }
+            // Phone as text; website as a scannable QR (easier to open on a phone than
+            // typing a URL, and it doubles as a tap-to-open link).
+            poi.tags["phone"]?.let {
+                InfoRow("Phone", it)
+                Spacer(Modifier.height(8.dp))
             }
-            if (contactRows.isNotEmpty()) {
-                contactRows.forEach { (label, value) -> InfoRow(label, value) }
+            poi.tags["website"]?.let {
+                WebsiteQr(it, context)
                 Spacer(Modifier.height(16.dp))
             }
 
@@ -213,7 +225,12 @@ private fun HoursContent(hours: OpeningHours.Hours, viaGoogle: Boolean) {
     val today = remember { todayIndex() }
     val status = remember(hours) { hours.status() }
 
-    HoursBadge(status.state, status.opensAtLabel(today))
+    // Seasonal/complex specs can't be structured; flag them rather than showing no badge.
+    if (hours.rawFallback != null) {
+        Badge("Seasonal", SeasonalGrey)
+    } else {
+        HoursBadge(status.state, status.opensAtLabel(today))
+    }
     Spacer(Modifier.height(10.dp))
 
     when {
@@ -233,15 +250,18 @@ private fun HoursContent(hours: OpeningHours.Hours, viaGoogle: Boolean) {
     }
 }
 
-/** Open/Closed badge (+ optional opens-at), shared by the OSM and Google paths. */
+/**
+ * Open/Closed badge, shared by the OSM and Google paths. When closed, the "opens …"
+ * text drops to its own line so it stays readable on the narrow display.
+ */
 @Composable
 private fun HoursBadge(state: OpeningHours.OpenState, opensAt: String?) {
     when (state) {
         OpeningHours.OpenState.OPEN -> Badge("Open now", OpenGreen)
-        OpeningHours.OpenState.CLOSED -> Row(verticalAlignment = Alignment.CenterVertically) {
+        OpeningHours.OpenState.CLOSED -> Column {
             Badge("Closed", ClosedRed)
             opensAt?.let {
-                Spacer(Modifier.size(8.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(it, style = MaterialTheme.typography.bodyMedium)
             }
         }
@@ -302,6 +322,46 @@ private fun InfoRow(label: String, value: String) {
     Column(modifier = Modifier.padding(vertical = 6.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+    HorizontalDivider()
+}
+
+/**
+ * Website as a QR code: far easier to open on a phone than reading and typing a URL off
+ * the Karoo. Tapping it still opens the link directly if a browser is reachable.
+ */
+@Composable
+private fun WebsiteQr(url: String, context: android.content.Context) {
+    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+        Text("Website", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(Color.White)
+                .padding(8.dp),
+        ) {
+            Image(
+                painter = rememberQrCodePainter(url),
+                contentDescription = "QR code for $url",
+                modifier = Modifier
+                    .size(128.dp)
+                    .clickable {
+                        runCatching {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }
+                    },
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            url,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
     HorizontalDivider()
 }
