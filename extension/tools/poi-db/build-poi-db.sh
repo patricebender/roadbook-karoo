@@ -2,7 +2,8 @@
 # Build the POI SQLite database from an OpenStreetMap regional extract.
 #
 # Pipeline: download .osm.pbf → osmium tags-filter to our POI tags → osmium export
-# to GeoJSONSeq → Node loader writes pois.sqlite (poi table + R*Tree index).
+# to GeoJSONSeq → Node loader writes the bundled extension asset directly (poi table
+# + R*Tree index).
 #
 # Re-runnable. Region is overridable so scaling from a Bundesland to all of
 # Germany/DACH is a single env change.
@@ -12,7 +13,8 @@ set -euo pipefail
 
 REGION="${OSM_REGION:-europe/germany/baden-wuerttemberg}"
 WORK="${WORK_DIR:-$(cd "$(dirname "$0")" && pwd)/work}"
-OUT="${OUT_DB:-$(cd "$(dirname "$0")/.." && pwd)/pois.sqlite}"
+# Write straight to the bundled Android asset the app seeds from on first run.
+OUT="${OUT_DB:-$(cd "$(dirname "$0")/../.." && pwd)/app/src/main/assets/pois-baden-wuerttemberg.sqlite}"
 
 PBF="$WORK/region.osm.pbf"
 FILTERED="$WORK/pois.osm.pbf"
@@ -22,9 +24,15 @@ URL="https://download.geofabrik.de/${REGION}-latest.osm.pbf"
 mkdir -p "$WORK"
 
 echo ">> Region: $REGION"
-echo ">> Downloading $URL"
-curl -fsSL --retry 3 -o "$PBF" "$URL"
-echo "   $(du -h "$PBF" | cut -f1) downloaded"
+# Reuse a previously downloaded extract; the BW pbf is ~230 MB. Set FORCE_DOWNLOAD=1
+# to refresh. Skips only when a non-empty file is already present.
+if [[ "${FORCE_DOWNLOAD:-0}" != "1" && -s "$PBF" ]]; then
+  echo ">> Using cached $PBF ($(du -h "$PBF" | cut -f1)); FORCE_DOWNLOAD=1 to refresh"
+else
+  echo ">> Downloading $URL"
+  curl -fsSL --retry 3 -o "$PBF" "$URL"
+  echo "   $(du -h "$PBF" | cut -f1) downloaded"
+fi
 
 # Our POI tags, filtered across nodes+ways+relations (POIs are mapped as any of them).
 echo ">> Filtering to POI tags"

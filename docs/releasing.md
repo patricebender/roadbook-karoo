@@ -30,4 +30,5 @@ The extension is versioned with **semantic versioning** driven by
   annotation is a **trailing comment on the same line**:
   `versionName = "X.Y.Z" // x-release-please-version`. release-please replaces the
   semver string on that exact line — don't move the comment to its own line or reformat it.
-- The **backend** is not versioned this way — it deploys continuously with sha-tagged images.
+- The bundled POI database is not versioned this way — it's rebuilt on demand via
+  `extension/tools/poi-db/`, and its own `PRAGMA user_version` drives app re-seeding.

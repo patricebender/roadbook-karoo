@@ -1,5 +1,12 @@
 # Roadbook for Karoo 3 — Foundation
 
+> **Note (architecture superseded):** the app is now **fully on-device** — there is no
+> backend. The extension queries the bundled spatial SQLite directly (`data/PoiQuery`), so
+> the Cloud Run service, the chunked `/build/*` HTTP protocol, and `BackendClient` described
+> below have been removed. The POI database is built offline by `extension/tools/poi-db/`
+> (formerly `backend/data-pipeline/`). Opening hours come from OSM tags, with an optional
+> on-demand Google Places lookup. The rest of this document is kept for design rationale.
+
 A Karoo 3 extension that turns a loaded route into an offline guide of POIs along the way
 (coffee, food, water, bike shops, fuel), so a rider can plan refuels and stops without
 cellular signal. Inspired by [waybook-karoo](https://github.com/jakubfoglar/waybook-karoo)

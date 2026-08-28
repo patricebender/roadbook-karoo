@@ -1,6 +1,0 @@
-# Keep the build context (uploaded to Cloud Build) minimal.
-node_modules/
-dist/
-*.log
-.env
-.env.*

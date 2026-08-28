@@ -17,18 +17,19 @@ additions:
 
 ## How it works
 
-Two parts:
+The **`extension/`** is the whole app — an on-device Karoo app (Kotlin,
+[karoo-ext](https://github.com/hammerheadnav/karoo-ext) SDK). It reads the loaded route,
+lets you configure the build (detour radius + category toggles), and queries a **spatial
+SQLite database bundled with the app** (R*Tree corridor search) to find POIs along the
+route — no server, fully offline. POIs render as typed map pins and in a scrollable
+"Waybook" list with opening hours. The only network calls are optional, on-demand, and go
+device→provider through the Karoo HTTP bridge: a Wikipedia blurb and a Google Places
+opening-hours lookup for POIs where OpenStreetMap has none.
 
-- **`extension/`** — the on-device Karoo app (Kotlin, [karoo-ext](https://github.com/hammerheadnav/karoo-ext) SDK).
-  Reads the loaded route, lets you configure the build (detour radius + category toggles),
-  calls the backend at build time, and renders POIs as typed map pins. Results are cached
-  so riding is fully offline. The build is a state machine (Building → Success/Error) that
-  drives all UI feedback — spinner, live "N/total" progress, glanceable result.
-- **`backend/`** — a service (TypeScript + Fastify) on Google Cloud Run. POIs come from
-  [OpenStreetMap](https://www.openstreetmap.org/), **pre-extracted into a spatial SQLite
-  database baked into the image** (no live Overpass dependency). A build is delivered as a
-  chunked protocol (`/build/start` returns a count, then `≤100 KB` pages) so long routes
-  work within the Karoo's HTTP size cap with no data loss.
+POI data comes from [OpenStreetMap](https://www.openstreetmap.org/). The bundled database
+is generated offline by **`extension/tools/poi-db/`** (downloads a regional extract, filters
+to our POI tags, loads a spatial SQLite) and baked into the app as an asset the extension
+seeds on first run.
 
 ## Installing on a Karoo 3
 
@@ -52,17 +53,18 @@ cd extension
 ./gradlew :app:assembleDebug
 ```
 
-### Backend
+### Refreshing the POI database
+The bundled POI database is built offline (needs [osmium-tool](https://osmcode.org/osmium-tool/)):
+
 ```sh
-cd backend
+cd extension/tools/poi-db
 npm install
-
-# One-time: build the POI database from an OSM extract (needs osmium-tool).
-# Downloads a regional extract, filters to our POI tags, loads a spatial SQLite.
+# Downloads a regional extract, filters to our POI tags, writes the bundled asset.
 OSM_REGION=europe/germany/baden-wuerttemberg npm run build:poi-db
-
-npm run dev        # local server on :8080 — queries pois.sqlite, fully offline
 ```
+
+See [`extension/tools/poi-db/README.md`](extension/tools/poi-db/README.md) for options
+(coverage, forced re-download, bumping the DB version).
 
 Releases are cut with [release-please](https://github.com/googleapis/release-please):
 merge the release PR → tag `extension-vX.Y.Z` → CI builds and attaches the APK.
