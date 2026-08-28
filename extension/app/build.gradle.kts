@@ -17,7 +17,7 @@ android {
         targetSdk = 34
         // versionCode: CI injects the monotonic run number; defaults to 1 locally.
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
-        versionName = "0.2.0" // x-release-please-version
+        versionName = "0.3.0" // x-release-please-version
 
         // Karoo is arm64 — only ship that ABI of the bundled SQLite native lib.
         ndk {

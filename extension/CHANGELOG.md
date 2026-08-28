@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/patricebender/roadbook-karoo/compare/extension-v0.2.0...extension-v0.3.0) (2026-08-28)
+
+
+### Features
+
+* Waybook route overview with on-device POI details ([#3](https://github.com/patricebender/roadbook-karoo/issues/3)) ([71e8e9d](https://github.com/patricebender/roadbook-karoo/commit/71e8e9deab4a5ce3da3ec0210219b29fb3f6fd01))
+
 ## [0.2.0](https://github.com/patricebender/roadbook-karoo/compare/extension-v0.1.0...extension-v0.2.0) (2026-08-26)
 
 
