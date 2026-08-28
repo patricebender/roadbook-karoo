@@ -18,6 +18,8 @@ androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-ru
 
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version = "2024.10.00" }
 androidx-material3 = { module = "androidx.compose.material3:material3" }
+# Category/detail glyphs (coffee cup, fuel, bike, …) not in material-icons-core.
+androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 androidx-ui = { module = "androidx.compose.ui:ui" }
 androidx-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
 androidx-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
@@ -22,12 +24,16 @@ android {
             abiFilters += "arm64-v8a"
         }
 
-        // Backend base URL (public, rate-limited Cloud Run endpoint).
-        buildConfigField(
-            "String",
-            "BACKEND_BASE_URL",
-            "\"https://roadbook-backend-iph3b2qdta-ew.a.run.app\"",
-        )
+        // Google Places API key for the on-demand "check hours on Google" feature.
+        // Read from local.properties (gitignored) or the PLACES_API_KEY env var; empty
+        // when unset, which disables the feature at runtime. Never commit the key.
+        val placesKey = run {
+            val props = Properties()
+            rootProject.file("local.properties").takeIf { it.exists() }
+                ?.inputStream()?.use { props.load(it) }
+            props.getProperty("PLACES_API_KEY") ?: System.getenv("PLACES_API_KEY") ?: ""
+        }
+        buildConfigField("String", "PLACES_API_KEY", "\"$placesKey\"")
     }
 
     buildTypes {
@@ -70,6 +76,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.activity.compose)
     debugImplementation(libs.androidx.ui.tooling)
 }

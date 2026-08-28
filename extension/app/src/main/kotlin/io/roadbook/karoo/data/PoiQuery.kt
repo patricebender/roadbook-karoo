@@ -4,6 +4,7 @@ import io.roadbook.karoo.util.LatLng
 import io.roadbook.karoo.util.cumulativeDistances
 import io.roadbook.karoo.util.distanceToRoute
 import io.roadbook.karoo.util.haversine
+import kotlinx.serialization.json.Json
 import kotlin.math.cos
 import kotlin.math.roundToInt
 
@@ -13,6 +14,8 @@ import kotlin.math.roundToInt
  * point-to-segment refine. Runs fully offline, in-process.
  */
 class PoiQuery(private val database: PoiDatabase) {
+
+    private val json = Json { ignoreUnknownKeys = true }
 
     private companion object {
         const val M_PER_DEG_LAT = 111_320.0
@@ -91,7 +94,12 @@ class PoiQuery(private val database: PoiDatabase) {
                 eligible
             }
             for (c in kept) {
-                out.add(c.row.toPoi(listOf(c.distanceAlong.roundToInt().toDouble())))
+                out.add(
+                    c.row.toPoi(
+                        distancesAlongRoute = listOf(c.distanceAlong.roundToInt().toDouble()),
+                        detourMeters = c.distanceToRoute.roundToInt(),
+                    ),
+                )
             }
         }
         out.sortBy { it.distancesAlongRoute.firstOrNull() ?: 0.0 }
@@ -107,7 +115,7 @@ class PoiQuery(private val database: PoiDatabase) {
             center.lat - dLat, center.lat + dLat, center.lng - dLng, center.lng + dLng, categories,
         )
             .filter { haversine(center, LatLng(it.lat, it.lng)) <= radiusMeters }
-            .map { it.toPoi(emptyList()) }
+            .map { it.toPoi(emptyList(), detourMeters = 0) }
     }
 
     private data class Row(
@@ -116,15 +124,17 @@ class PoiQuery(private val database: PoiDatabase) {
         val lng: Double,
         val type: String,
         val name: String?,
+        val tags: Map<String, String>,
     ) {
-        fun toPoi(distancesAlongRoute: List<Double>) = Poi(
+        fun toPoi(distancesAlongRoute: List<Double>, detourMeters: Int) = Poi(
             id = "osm:$osmId",
             lat = lat,
             lng = lng,
             type = type,
             name = name,
             distancesAlongRoute = distancesAlongRoute,
-            tags = emptyMap(),
+            detourMeters = detourMeters,
+            tags = tags,
         )
     }
 
@@ -138,7 +148,7 @@ class PoiQuery(private val database: PoiDatabase) {
         // bound as parameters.
         val placeholders = categories.joinToString(",") { "?" }
         val sql = """
-            SELECT p.osm_id, p.lat, p.lng, p.type, p.name
+            SELECT p.osm_id, p.lat, p.lng, p.type, p.name, p.tags
             FROM poi_rtree r
             JOIN poi p ON p.id = r.id
             WHERE r.maxLat >= $minLat AND r.minLat <= $maxLat
@@ -156,10 +166,17 @@ class PoiQuery(private val database: PoiDatabase) {
                         lng = c.getDouble(2),
                         type = c.getString(3),
                         name = if (c.isNull(4)) null else c.getString(4),
+                        tags = if (c.isNull(5)) emptyMap() else parseTags(c.getString(5)),
                     ),
                 )
             }
         }
         return rows
     }
+
+    /** Parse the stored `tags` JSON blob into a map; empty on any failure. */
+    private fun parseTags(jsonText: String): Map<String, String> =
+        runCatching {
+            json.decodeFromString<Map<String, String>>(jsonText)
+        }.getOrDefault(emptyMap())
 }
