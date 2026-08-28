@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -65,6 +66,10 @@ class MainActivity : ComponentActivity() {
                             lifecycleScope.launch { configStore.setCategoryEnabled(c, on) }
                         },
                         onBuild = ::runBuild,
+                        onClear = {
+                            repository.clear()
+                            repository.setBuildState(BuildState.Idle)
+                        },
                     )
                 }
             }
@@ -95,10 +100,13 @@ private fun ConfigScreen(
     onDetourChange: (Int) -> Unit,
     onCategoryToggle: (Category, Boolean) -> Unit,
     onBuild: () -> Unit,
+    onClear: () -> Unit,
 ) {
     val config by configStore.config.collectAsStateWithLifecycle(initialValue = RoadbookConfig())
     val buildState by repository.buildState.collectAsStateWithLifecycle()
+    val pois by repository.pois.collectAsStateWithLifecycle()
     val building = buildState is BuildState.Building
+    val hasPins = pois.isNotEmpty()
 
     Column(
         modifier = Modifier
@@ -147,12 +155,22 @@ private fun ConfigScreen(
         }
         Spacer(Modifier.height(24.dp))
 
-        Button(
-            onClick = onBuild,
-            enabled = !building,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(if (buildState is BuildState.Success || buildState is BuildState.Error) "Rebuild" else "Build now")
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = onBuild,
+                enabled = !building,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(if (buildState is BuildState.Success || buildState is BuildState.Error) "Rebuild" else "Build now")
+            }
+            if (hasPins) {
+                OutlinedButton(
+                    onClick = onClear,
+                    enabled = !building,
+                ) {
+                    Text("Clear")
+                }
+            }
         }
 
         Spacer(Modifier.height(16.dp))

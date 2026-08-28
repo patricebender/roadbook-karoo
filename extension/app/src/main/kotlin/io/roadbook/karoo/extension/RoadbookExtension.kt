@@ -5,10 +5,12 @@ import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.HideSymbols
 import io.hammerhead.karooext.models.MapEffect
+import io.hammerhead.karooext.models.OnNavigationState
 import io.hammerhead.karooext.models.ShowSymbols
 import io.hammerhead.karooext.models.Symbol
 import io.roadbook.karoo.BuildConfig
 import io.roadbook.karoo.build.BuildController
+import io.roadbook.karoo.build.BuildState
 import io.roadbook.karoo.data.ConfigStore
 import io.roadbook.karoo.data.Poi
 import io.roadbook.karoo.data.PoiDatabase
@@ -64,7 +66,8 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
         Timber.d("startMap: observing roadbook POIs")
         var shownIds = emptyList<String>()
 
-        val job = repository.pois
+        // Draw pins whenever the repository changes (build, clear, route-removed).
+        val drawJob = repository.pois
             .onEach { pois ->
                 // Remove any pins no longer present, then show the current set.
                 val newIds = pois.map { it.id }
@@ -76,9 +79,27 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
             }
             .launchIn(scope)
 
+        // Clear the roadbook when the rider stops navigating (route removed).
+        val system = KarooSystemService(applicationContext)
+        var navConsumerId: String? = null
+        system.connect { connected ->
+            if (!connected) return@connect
+            navConsumerId = system.addConsumer<OnNavigationState> { event ->
+                if (event.state is OnNavigationState.NavigationState.Idle &&
+                    repository.pois.value.isNotEmpty()
+                ) {
+                    Timber.d("route removed → clearing roadbook")
+                    repository.clear()
+                    repository.setBuildState(BuildState.Idle)
+                }
+            }
+        }
+
         emitter.setCancellable {
             Timber.d("startMap: cancelled")
-            job.cancel()
+            drawJob.cancel()
+            navConsumerId?.let { system.removeConsumer(it) }
+            system.disconnect()
         }
     }
 
