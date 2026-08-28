@@ -1,0 +1,2 @@
+# Bundled POI DB is large + generated; delivery/versioning strategy TBD (task 37).
+*.sqlite

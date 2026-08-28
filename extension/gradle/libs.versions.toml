@@ -18,6 +18,8 @@ androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-ru
 
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version = "2024.10.00" }
 androidx-material3 = { module = "androidx.compose.material3:material3" }
+# Category/detail glyphs (coffee cup, fuel, bike, …) not in material-icons-core.
+androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 androidx-ui = { module = "androidx.compose.ui:ui" }
 androidx-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
 androidx-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
@@ -25,6 +27,10 @@ androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", vers
 
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.6.3" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version = "1.1.1" }
+# Bundled SQLite with R*Tree (Android's built-in SQLite may omit the RTREE module).
+# Published on JitPack, hence the com.github.requery group.
+sqlite-android = { module = "com.github.requery:sqlite-android", version = "3.49.0" }
 timber = { module = "com.jakewharton.timber:timber", version = "5.0.1" }
 
 [plugins]

@@ -1,0 +1,21 @@
+{
+  "name": "roadbook-poi-db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build the bundled POI SQLite asset from an OpenStreetMap extract",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build:poi-db": "bash build-poi-db.sh",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

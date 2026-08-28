@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
@@ -16,6 +18,22 @@ android {
         // versionCode: CI injects the monotonic run number; defaults to 1 locally.
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = "0.2.0" // x-release-please-version
+
+        // Karoo is arm64 — only ship that ABI of the bundled SQLite native lib.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+
+        // Google Places API key for the on-demand "check hours on Google" feature.
+        // Read from local.properties (gitignored) or the PLACES_API_KEY env var; empty
+        // when unset, which disables the feature at runtime. Never commit the key.
+        val placesKey = run {
+            val props = Properties()
+            rootProject.file("local.properties").takeIf { it.exists() }
+                ?.inputStream()?.use { props.load(it) }
+            props.getProperty("PLACES_API_KEY") ?: System.getenv("PLACES_API_KEY") ?: ""
+        }
+        buildConfigField("String", "PLACES_API_KEY", "\"$placesKey\"")
     }
 
     buildTypes {
@@ -47,6 +65,8 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.sqlite.android)
 
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -56,6 +76,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.activity.compose)
     debugImplementation(libs.androidx.ui.tooling)
 }

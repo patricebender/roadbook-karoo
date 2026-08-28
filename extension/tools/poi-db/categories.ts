@@ -12,22 +12,28 @@ export interface TagRule {
 }
 
 export const CATEGORY_RULES: Record<Category, TagRule[]> = {
-  food_drink: [
-    { key: "amenity", value: "cafe", type: "COFFEE" },
+  restaurants: [
     { key: "amenity", value: "restaurant", type: "FOOD" },
     { key: "amenity", value: "fast_food", type: "FOOD" },
+  ],
+  supermarkets: [
+    { key: "shop", value: "supermarket", type: "CONVENIENCE_STORE" },
+    { key: "shop", value: "convenience", type: "CONVENIENCE_STORE" },
+  ],
+  cafe_bar: [
+    { key: "amenity", value: "cafe", type: "COFFEE" },
     { key: "amenity", value: "bar", type: "BAR" },
     { key: "amenity", value: "pub", type: "BAR" },
-    { key: "shop", value: "convenience", type: "CONVENIENCE_STORE" },
-    { key: "shop", value: "supermarket", type: "CONVENIENCE_STORE" },
   ],
-  water_restroom: [
+  water: [
     { key: "amenity", value: "drinking_water", type: "REST_STOP" },
+  ],
+  toilet: [
     { key: "amenity", value: "toilets", type: "RESTROOM" },
   ],
   bike: [
     { key: "shop", value: "bicycle", type: "BIKE_SHOP" },
-    { key: "amenity", value: "bicycle_parking", type: "BIKE_PARKING" },
+    // bicycle_parking removed: ~28k mostly-unnamed points, pure map clutter.
   ],
   fuel: [{ key: "amenity", value: "fuel", type: "GAS_STATION" }],
 };
@@ -44,6 +50,34 @@ export function resolveType(
 ): PoiType | null {
   for (const r of rules) {
     if (tags[r.key] === r.value) return r.type;
+  }
+  return null;
+}
+
+/** Every tag rule, tagged with the Category it belongs to. Used by the pipeline. */
+export const ALL_RULES: Array<TagRule & { category: Category }> = (
+  Object.entries(CATEGORY_RULES) as [Category, TagRule[]][]
+).flatMap(([category, rules]) => rules.map((r) => ({ ...r, category })));
+
+/** Resolve OSM tags to our {type, category}, or null if none match. */
+export function resolvePoi(
+  tags: Record<string, string>,
+): { type: PoiType; category: Category } | null {
+  for (const r of ALL_RULES) {
+    if (tags[r.key] === r.value) {
+      // For fuel, the value to a cyclist is the on-site shop (drinks/snacks), not
+      // the fuel. Exclude car dealerships (shop=car) and unattended automats
+      // (shop=no) — neither is a convenience stop.
+      if (
+        r.category === "fuel" &&
+        (tags.shop === "car" ||
+          tags.shop === "car_repair" ||
+          tags.shop === "no")
+      ) {
+        continue;
+      }
+      return { type: r.type, category: r.category };
+    }
   }
   return null;
 }

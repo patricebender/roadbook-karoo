@@ -3,46 +3,200 @@ package io.roadbook.karoo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import io.hammerhead.karooext.KarooSystemService
+import io.roadbook.karoo.build.BuildController
+import io.roadbook.karoo.build.BuildState
+import io.roadbook.karoo.data.Category
+import io.roadbook.karoo.data.ConfigStore
+import io.roadbook.karoo.data.PlacesClient
+import io.roadbook.karoo.data.Poi
+import io.roadbook.karoo.data.PoiDatabase
+import io.roadbook.karoo.data.PoiQuery
+import io.roadbook.karoo.data.RoadbookConfig
+import io.roadbook.karoo.data.RoadbookRepository
+import io.roadbook.karoo.data.WikipediaClient
+import io.roadbook.karoo.ui.FilterScreen
+import io.roadbook.karoo.ui.PoiDetailScreen
+import io.roadbook.karoo.ui.WaybookScreen
+import io.roadbook.karoo.ui.hoursFor
+import kotlinx.coroutines.launch
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
-/**
- * Milestone 1 placeholder screen. Real config UI (detour slider + category
- * toggles) and the Route/Nearby tabs come in later milestones.
- */
+/** In-app screens. No nav framework — a small sealed state the host switches on. */
+private sealed interface Screen {
+    data object Waybook : Screen
+    data object Filter : Screen
+    data class Detail(val poiId: String) : Screen
+}
+
 class MainActivity : ComponentActivity() {
+
+    private lateinit var configStore: ConfigStore
+    private lateinit var repository: RoadbookRepository
+    private lateinit var query: PoiQuery
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        configStore = ConfigStore(applicationContext)
+        repository = RoadbookRepository.get(applicationContext)
+        query = PoiQuery(PoiDatabase.get(applicationContext))
+
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    HomeScreen()
+                    RoadbookApp()
                 }
             }
         }
     }
-}
 
-@Composable
-private fun HomeScreen() {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Roadbook", style = MaterialTheme.typography.headlineSmall)
-        Text(
-            "Load a route and open the map to see the test pin.",
-            style = MaterialTheme.typography.bodyMedium,
+    @Composable
+    private fun RoadbookApp() {
+        val config by configStore.config.collectAsStateWithLifecycle(initialValue = RoadbookConfig())
+        val buildState by repository.buildState.collectAsStateWithLifecycle()
+        val pois by repository.pois.collectAsStateWithLifecycle()
+        val routeLength by repository.routeLengthMeters.collectAsStateWithLifecycle()
+
+        var screen: Screen by remember { mutableStateOf(Screen.Waybook) }
+        // Hoisted here so the list scroll position is preserved across navigation to
+        // the detail/filter screens and back.
+        val waybookListState = rememberLazyListState()
+
+        when (val s = screen) {
+            is Screen.Waybook -> WaybookScreen(
+                pois = pois,
+                routeLengthMeters = routeLength,
+                onOpenFilter = { screen = Screen.Filter },
+                onOpenPoi = { screen = Screen.Detail(it.id) },
+                // OSM hours, or a Google result already fetched this session → badge in list.
+                hoursOf = { poi -> hoursFor(poi, repository.cachedHours(poi.id)?.hours) },
+                listState = waybookListState,
+            )
+
+            is Screen.Filter -> FilterScreen(
+                config = config,
+                buildState = buildState,
+                hasPins = pois.isNotEmpty(),
+                onDetourChange = { m -> lifecycleScope.launch { configStore.setDetour(m) } },
+                onCategoryToggle = { c, on ->
+                    lifecycleScope.launch { configStore.setCategoryEnabled(c, on) }
+                },
+                onBuild = ::runBuild,
+                onClear = {
+                    repository.clear()
+                    repository.setBuildState(BuildState.Idle)
+                },
+                onBack = { screen = Screen.Waybook },
+            )
+
+            is Screen.Detail -> {
+                val poi = pois.firstOrNull { it.id == s.poiId }
+                if (poi == null) {
+                    // POI vanished (e.g. cleared while open) — bounce back.
+                    screen = Screen.Waybook
+                } else {
+                    // Offer a Google hours lookup only when OSM has none, the category
+                    // is one where hours matter, and an API key is configured.
+                    val googleEligible = poi.tags["opening_hours"] == null &&
+                        Category.ofType(poi.type) in GOOGLE_HOURS_CATEGORIES &&
+                        BuildConfig.PLACES_API_KEY.isNotEmpty()
+                    PoiDetailScreen(
+                        poi = poi,
+                        hasRoute = routeLength > 0,
+                        cachedDescription = repository.cachedDescription(poi.id),
+                        loadDescription = { fetchDescription(poi) },
+                        cachedGoogleHours = repository.cachedHours(poi.id),
+                        loadGoogleHours = if (googleEligible) {
+                            { fetchGoogleHours(poi) }
+                        } else {
+                            null
+                        },
+                        onBack = { screen = Screen.Waybook },
+                    )
+                }
+            }
+        }
+    }
+
+    /** Build from the app by spinning up a short-lived Karoo connection. */
+    private fun runBuild() {
+        repository.setBuildState(BuildState.Building("Connecting…"))
+        val system = KarooSystemService(applicationContext)
+        system.connect { connected ->
+            if (!connected) {
+                repository.setBuildState(BuildState.Error("Karoo not connected"))
+                return@connect
+            }
+            lifecycleScope.launch {
+                BuildController(system, configStore, repository, query).runBuild()
+                system.disconnect()
+            }
+        }
+    }
+
+    /**
+     * Fetch a place description via the Karoo HTTP bridge (works over the paired
+     * phone, not just WiFi), caching the result so re-opening is instant and it
+     * survives offline. Uses a short-lived connection like [runBuild].
+     */
+    private suspend fun fetchDescription(poi: Poi): String? {
+        repository.cachedDescription(poi.id)?.let { return it }
+        val system = KarooSystemService(applicationContext)
+        val connected = suspendCoroutine { cont -> system.connect { cont.resume(it) } }
+        if (!connected) return null
+        return try {
+            WikipediaClient(system).summaryFor(poi.tags["wikipedia"])
+                ?.also { repository.cacheDescription(poi.id, it) }
+        } finally {
+            system.disconnect()
+        }
+    }
+
+    /**
+     * Live opening-hours lookup via Google Places (only when OSM has none). The Place
+     * ID is cached (allowed by Maps ToS); the hours are returned for display but never
+     * persisted. Short-lived connection like [fetchDescription].
+     */
+    private suspend fun fetchGoogleHours(poi: Poi): PlacesClient.Result? {
+        // Serve a still-fresh cached fetch (performance cache) without a network call.
+        repository.cachedHours(poi.id)?.let { return it }
+        val system = KarooSystemService(applicationContext)
+        val connected = suspendCoroutine { cont -> system.connect { cont.resume(it) } }
+        if (!connected) return null
+        return try {
+            PlacesClient(system)
+                .hoursFor(
+                    name = poi.name,
+                    lat = poi.lat,
+                    lng = poi.lng,
+                    knownPlaceId = repository.cachedPlaceId(poi.id),
+                )
+                ?.also {
+                    repository.cachePlaceId(poi.id, it.placeId) // Place ID: persisted
+                    repository.cacheHours(poi.id, it)           // hours: memory, short TTL
+                }
+        } finally {
+            system.disconnect()
+        }
+    }
+
+    private companion object {
+        // Categories where opening hours matter enough to spend a Google lookup.
+        val GOOGLE_HOURS_CATEGORIES = setOf(
+            Category.SUPERMARKETS, Category.CAFE_BAR, Category.RESTAURANTS, Category.FUEL,
         )
     }
 }
