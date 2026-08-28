@@ -12,14 +12,18 @@ export interface TagRule {
 }
 
 export const CATEGORY_RULES: Record<Category, TagRule[]> = {
-  food_drink: [
-    { key: "amenity", value: "cafe", type: "COFFEE" },
+  restaurants: [
     { key: "amenity", value: "restaurant", type: "FOOD" },
     { key: "amenity", value: "fast_food", type: "FOOD" },
+  ],
+  supermarkets: [
+    { key: "shop", value: "supermarket", type: "CONVENIENCE_STORE" },
+    { key: "shop", value: "convenience", type: "CONVENIENCE_STORE" },
+  ],
+  cafe_bar: [
+    { key: "amenity", value: "cafe", type: "COFFEE" },
     { key: "amenity", value: "bar", type: "BAR" },
     { key: "amenity", value: "pub", type: "BAR" },
-    { key: "shop", value: "convenience", type: "CONVENIENCE_STORE" },
-    { key: "shop", value: "supermarket", type: "CONVENIENCE_STORE" },
   ],
   water: [
     { key: "amenity", value: "drinking_water", type: "REST_STOP" },
@@ -60,7 +64,17 @@ export function resolvePoi(
   tags: Record<string, string>,
 ): { type: PoiType; category: Category } | null {
   for (const r of ALL_RULES) {
-    if (tags[r.key] === r.value) return { type: r.type, category: r.category };
+    if (tags[r.key] === r.value) {
+      // Some car dealerships (shop=car) have an on-site pump tagged amenity=fuel.
+      // Those aren't public gas stations — exclude them from the fuel category.
+      if (
+        r.category === "fuel" &&
+        (tags.shop === "car" || tags.shop === "car_repair")
+      ) {
+        continue;
+      }
+      return { type: r.type, category: r.category };
+    }
   }
   return null;
 }

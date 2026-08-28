@@ -3,17 +3,26 @@
 // karoo-ext Symbol.POI.Types so the extension can render them directly as map pins.
 
 /** POI category toggles the rider switches on/off when building. */
-export type Category = "food_drink" | "water" | "toilet" | "bike" | "fuel";
+export type Category =
+  | "restaurants"
+  | "supermarkets"
+  | "cafe_bar"
+  | "water"
+  | "toilet"
+  | "bike"
+  | "fuel";
 
 export const ALL_CATEGORIES: Category[] = [
-  "food_drink",
+  "restaurants",
+  "supermarkets",
+  "cafe_bar",
   "water",
   "toilet",
   "bike",
   "fuel",
 ];
 
-/** Subset of karoo-ext Symbol.POI.Types we emit for the MVP. */
+/** Subset of karoo-ext Symbol.POI.Types we emit. */
 export type PoiType =
   | "COFFEE"
   | "FOOD"
@@ -22,7 +31,6 @@ export type PoiType =
   | "REST_STOP" // drinking water
   | "RESTROOM"
   | "BIKE_SHOP"
-  | "BIKE_PARKING"
   | "GAS_STATION"
   | "GENERIC";
 

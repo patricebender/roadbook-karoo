@@ -5,7 +5,9 @@ package io.roadbook.karoo.data
  * (backend/src/contract.ts Category) and is what we send in the build request.
  */
 enum class Category(val id: String, val label: String) {
-    FOOD_DRINK("food_drink", "Food & drink"),
+    RESTAURANTS("restaurants", "Restaurants"),
+    SUPERMARKETS("supermarkets", "Supermarkets"),
+    CAFE_BAR("cafe_bar", "Café & Bar"),
     WATER("water", "Water"),
     TOILET("toilet", "Toilets"),
     BIKE("bike", "Bike shops"),
@@ -14,7 +16,9 @@ enum class Category(val id: String, val label: String) {
     companion object {
         /** Map a POI `type` (as stored in the DB) back to its category. */
         fun ofType(type: String): Category? = when (type) {
-            "COFFEE", "FOOD", "BAR", "CONVENIENCE_STORE" -> FOOD_DRINK
+            "FOOD" -> RESTAURANTS
+            "CONVENIENCE_STORE" -> SUPERMARKETS
+            "COFFEE", "BAR" -> CAFE_BAR
             "REST_STOP" -> WATER
             "RESTROOM" -> TOILET
             "BIKE_SHOP" -> BIKE
