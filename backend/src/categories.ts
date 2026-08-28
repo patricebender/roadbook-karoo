@@ -65,11 +65,14 @@ export function resolvePoi(
 ): { type: PoiType; category: Category } | null {
   for (const r of ALL_RULES) {
     if (tags[r.key] === r.value) {
-      // Some car dealerships (shop=car) have an on-site pump tagged amenity=fuel.
-      // Those aren't public gas stations — exclude them from the fuel category.
+      // For fuel, the value to a cyclist is the on-site shop (drinks/snacks), not
+      // the fuel. Exclude car dealerships (shop=car) and unattended automats
+      // (shop=no) — neither is a convenience stop.
       if (
         r.category === "fuel" &&
-        (tags.shop === "car" || tags.shop === "car_repair")
+        (tags.shop === "car" ||
+          tags.shop === "car_repair" ||
+          tags.shop === "no")
       ) {
         continue;
       }
