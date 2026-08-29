@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/patricebender/roadbook-karoo/compare/extension-v0.3.0...extension-v0.4.0) (2026-08-29)
+
+
+### Features
+
+* redesign whole app ([dbc9d18](https://github.com/patricebender/roadbook-karoo/commit/dbc9d182274c7e0103cee7e1d61c85e9863de470))
+* rework Waybook UX, add QR/ice-cream, on-device build controls ([8726bd6](https://github.com/patricebender/roadbook-karoo/commit/8726bd6c49ae0495533a26af58e42fd2554df22c))
+
 ## [0.3.0](https://github.com/patricebender/roadbook-karoo/compare/extension-v0.2.0...extension-v0.3.0) (2026-08-28)
 
 
