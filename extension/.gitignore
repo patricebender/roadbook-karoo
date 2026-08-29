@@ -1,5 +1,9 @@
-.gradle/
-build/
+# Anchor Gradle output dirs to the module roots. A bare `build/` would also match
+# the source package io/roadbook/karoo/build/, dropping it from the tree — which
+# broke the CI (case-sensitive Linux) build while compiling fine locally.
+/.gradle/
+/build/
+/app/build/
 local.properties
 *.iml
 .idea/
