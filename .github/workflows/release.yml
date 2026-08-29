@@ -4,7 +4,7 @@ name: Release extension
 #
 # Flow: feat:/fix: commits on main -> release-please maintains a "Release PR"
 # that bumps versionName in extension/app/build.gradle.kts + CHANGELOG. Merging
-# that PR creates the tag `extension-vX.Y.Z` + a GitHub Release, and this same
+# that PR creates the tag `vX.Y.Z` + a GitHub Release, and this same
 # run then builds the APK and attaches it to that release.
 on:
   push:
@@ -61,9 +61,7 @@ jobs:
         if: ${{ steps.rp.outputs.releases_created == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # In manifest mode with a component, the tag output is path-prefixed
-          # (extension--tag_name); fall back to the plain name just in case.
-          TAG: ${{ steps.rp.outputs['extension--tag_name'] || steps.rp.outputs.tag_name }}
+          TAG: ${{ steps.rp.outputs.tag_name }}
         run: |
           cp extension/app/build/outputs/apk/debug/app-debug.apk "roadbook-${TAG}.apk"
           gh release upload "$TAG" "roadbook-${TAG}.apk" --clobber

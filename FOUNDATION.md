@@ -2,8 +2,7 @@
 
 A Karoo 3 extension that turns a loaded route into an offline guide of POIs along the way
 (coffee, food, water, bike shops, fuel), so a rider can plan refuels and stops without
-cellular signal. Inspired by [waybook-karoo](https://github.com/jakubfoglar/waybook-karoo)
-(APK-only, no source), with two additions:
+cellular signal. Two things set it apart:
 
 - **Configurable detour distance** — how far off the route to search for POIs.
 - **Category toggles** — switch POI categories on/off before building.
