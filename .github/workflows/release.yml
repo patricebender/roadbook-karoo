@@ -61,7 +61,9 @@ jobs:
         if: ${{ steps.rp.outputs.releases_created == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.rp.outputs.tag_name }}
+          # Manifest is path-scoped (package "extension"), so the tag output is
+          # namespaced per path — the bare `tag_name` output is empty here.
+          TAG: ${{ steps.rp.outputs['extension--tag_name'] }}
         run: |
           cp extension/app/build/outputs/apk/debug/app-debug.apk "roadbook-${TAG}.apk"
           gh release upload "$TAG" "roadbook-${TAG}.apk" --clobber
