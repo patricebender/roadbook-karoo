@@ -4,8 +4,7 @@ A [Hammerhead Karoo](https://www.hammerhead.io/) extension that turns a loaded r
 offline guide of POIs along the way — coffee, food, water, bike shops, fuel — so you can plan
 refuels and stops without cellular signal.
 
-Inspired by [waybook-karoo](https://github.com/jakubfoglar/waybook-karoo), with two
-additions: a **configurable detour distance** and **category toggles**.
+Two things set it apart: a **configurable detour distance** and **category toggles**.
 
 ## Features
 
