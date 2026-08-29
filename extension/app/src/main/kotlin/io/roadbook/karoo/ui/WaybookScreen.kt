@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -353,16 +354,18 @@ private fun EmptyState(buildState: BuildState, onOpenFilter: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (!building) {
-            Spacer(Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.clickable(onClick = onOpenFilter),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Icons.Filled.Tune, contentDescription = null)
-                Spacer(Modifier.size(8.dp))
-                Text("Open filter", style = MaterialTheme.typography.titleSmall)
-            }
+        Spacer(Modifier.height(16.dp))
+        // Kept in the layout while building (just hidden + non-clickable) so the block's
+        // height stays constant and the content above doesn't jump when it disappears.
+        Row(
+            modifier = Modifier
+                .alpha(if (building) 0f else 1f)
+                .clickable(enabled = !building, onClick = onOpenFilter),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Tune, contentDescription = null)
+            Spacer(Modifier.size(8.dp))
+            Text("Open filter", style = MaterialTheme.typography.titleSmall)
         }
     }
 }
