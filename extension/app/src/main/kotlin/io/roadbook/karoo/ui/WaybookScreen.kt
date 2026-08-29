@@ -83,13 +83,10 @@ fun WaybookScreen(
         HorizontalDivider()
 
         if (pois.isEmpty()) {
-            // While the first build runs with nothing to show yet, the animated mark
-            // takes over the body (the header spinner is suppressed to avoid two).
-            if (buildState is BuildState.Building) {
-                BuildingState(buildState.phase)
-            } else {
-                EmptyState(onOpenFilter)
-            }
+            // One stable layout for the no-places body: the mark sits in the same spot
+            // whether idle or building — starting a build just animates it in place and
+            // swaps the copy, so nothing jumps.
+            EmptyState(buildState, onOpenFilter)
             return@Column
         }
 
@@ -314,12 +311,15 @@ private fun StatusChip(text: String, color: Color) {
 }
 
 /**
- * Body shown during the first build (no places yet): the animated roadbook mark traces
- * its route and lights up waypoints one after another, with the current build phase below.
- * This replaces a bare header spinner so the wait itself reinforces the brand.
+ * The no-places body, shared by the idle and building states so the layout never jumps:
+ * the mark holds the same slot throughout. Idle shows the static mark with a hint to load
+ * a route; while building, the same mark animates in place (route traced, waypoints
+ * lighting up) and the copy switches to the live build phase. The filter shortcut only
+ * shows at rest, so the searching state stays focused on the animation.
  */
 @Composable
-private fun BuildingState(phase: String) {
+private fun EmptyState(buildState: BuildState, onOpenFilter: () -> Unit) {
+    val building = buildState is BuildState.Building
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -327,49 +327,42 @@ private fun BuildingState(phase: String) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        RoadbookLoadingLogo(size = 112.dp)
-        Spacer(Modifier.height(20.dp))
-        Text(
-            phase,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
-private fun EmptyState(onOpenFilter: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ic_roadbook_mark),
-            contentDescription = null,
-            modifier = Modifier.size(56.dp),
-        )
+        // Same slot, same size — only the renderer changes when a build starts, so the
+        // static mark appears to spring to life rather than being replaced.
+        if (building) {
+            RoadbookLoadingLogo(size = 72.dp)
+        } else {
+            Image(
+                painter = painterResource(R.drawable.ic_roadbook_mark),
+                contentDescription = null,
+                modifier = Modifier.size(72.dp),
+            )
+        }
         Spacer(Modifier.height(16.dp))
         Text(
-            "No places yet",
+            if (building) (buildState as BuildState.Building).phase else "No places yet",
             style = MaterialTheme.typography.titleMedium,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Load a route on the Karoo, then tap the build icon above.",
+            if (building) {
+                "Tracing your route for cafés, water, shops and more…"
+            } else {
+                "Load a route on the Karoo, then tap the build icon above."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(16.dp))
-        Row(
-            modifier = Modifier.clickable(onClick = onOpenFilter),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Icons.Filled.Tune, contentDescription = null)
-            Spacer(Modifier.size(8.dp))
-            Text("Open filter", style = MaterialTheme.typography.titleSmall)
+        if (!building) {
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.clickable(onClick = onOpenFilter),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Tune, contentDescription = null)
+                Spacer(Modifier.size(8.dp))
+                Text("Open filter", style = MaterialTheme.typography.titleSmall)
+            }
         }
     }
 }

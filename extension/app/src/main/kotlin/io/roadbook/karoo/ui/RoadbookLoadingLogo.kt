@@ -102,8 +102,9 @@ private fun DrawScope.drawRoadbook(progress: Float) {
         end = Offset(dx + 316f * scale, dy),
     )
 
-    // Dim base route (the "unvisited" road), then the bright traced portion on top.
-    drawPath(path, brush = routeBrush, alpha = 0.28f, style = Stroke(width = stroke, cap = StrokeCap.Round))
+    // Base route always fully present (this is the resting logo); the traced portion
+    // just rides a touch brighter on top so a highlight appears to sweep along it.
+    drawPath(path, brush = routeBrush, alpha = 0.55f, style = Stroke(width = stroke, cap = StrokeCap.Round))
 
     val headLen = length * progress
     if (headLen > 0f) {
@@ -120,7 +121,9 @@ private fun DrawScope.drawRoadbook(progress: Float) {
         val since = progress - frac
         val pop = if (since in 0f..0.12f) 1f + (0.12f - since) / 0.12f * 0.6f else 1f
         val baseR = 16f * scale
-        val alpha = if (reached) 1f else 0.35f
+        // Nodes stay visible at rest (matching the static mark); reaching one just
+        // brightens it fully and pops it.
+        val alpha = if (reached) 1f else 0.8f
         // Soft halo on the freshly-reached node.
         if (since in 0f..0.18f) {
             drawCircle(Color.White, radius = baseR * (1.8f + since * 2f), center = pos, alpha = 0.12f)
@@ -143,13 +146,14 @@ private fun DrawScope.drawRoadbook(progress: Float) {
         else -> 1f
     }
     val pinReached = progress >= 0.94f
+    // The pin is the brand anchor — always solid; arrival only adds the halo + pop.
     val pinR = 42f * scale * pinPop
     val pinBrush = Brush.verticalGradient(
         colors = listOf(PinTop, PinBottom),
         startY = pinPos.y - pinR,
         endY = pinPos.y + pinR,
     )
-    val pinAlpha = if (pinReached) 1f else 0.5f
+    val pinAlpha = 1f
     // Arrival halo.
     if (pinReached) {
         drawCircle(PinTop, radius = pinR * 1.7f, center = pinPos, alpha = 0.14f)
