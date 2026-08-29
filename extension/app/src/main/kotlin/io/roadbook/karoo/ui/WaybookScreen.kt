@@ -73,6 +73,9 @@ fun WaybookScreen(
         Header(
             buildState = buildState,
             hasPins = pois.isNotEmpty(),
+            // When the body shows the big animated logo (first build, no pins yet),
+            // keep the header status line quiet so there's only one progress cue.
+            showStatusLine = pois.isNotEmpty() || buildState !is BuildState.Building,
             onBuild = onBuild,
             onClear = onClear,
             onOpenFilter = onOpenFilter,
@@ -80,7 +83,13 @@ fun WaybookScreen(
         HorizontalDivider()
 
         if (pois.isEmpty()) {
-            EmptyState(onOpenFilter)
+            // While the first build runs with nothing to show yet, the animated mark
+            // takes over the body (the header spinner is suppressed to avoid two).
+            if (buildState is BuildState.Building) {
+                BuildingState(buildState.phase)
+            } else {
+                EmptyState(onOpenFilter)
+            }
             return@Column
         }
 
@@ -105,6 +114,7 @@ fun WaybookScreen(
 private fun Header(
     buildState: BuildState,
     hasPins: Boolean,
+    showStatusLine: Boolean,
     onBuild: () -> Unit,
     onClear: () -> Unit,
     onOpenFilter: () -> Unit,
@@ -126,7 +136,7 @@ private fun Header(
         )
         Spacer(Modifier.size(10.dp))
         Box(modifier = Modifier.weight(1f)) {
-            BuildStatusLine(buildState)
+            if (showStatusLine) BuildStatusLine(buildState)
         }
         // Build/rebuild: primary tint when there's work, muted after a build. While
         // building the icon just goes disabled — the single spinner lives in the
@@ -299,6 +309,30 @@ private fun StatusChip(text: String, color: Color) {
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
+        )
+    }
+}
+
+/**
+ * Body shown during the first build (no places yet): the animated roadbook mark traces
+ * its route and lights up waypoints one after another, with the current build phase below.
+ * This replaces a bare header spinner so the wait itself reinforces the brand.
+ */
+@Composable
+private fun BuildingState(phase: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        RoadbookLoadingLogo(size = 112.dp)
+        Spacer(Modifier.height(20.dp))
+        Text(
+            phase,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

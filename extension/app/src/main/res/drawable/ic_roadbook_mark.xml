@@ -1,58 +1,56 @@
 <!--
-  Roadbook mark: the route line with passed waypoints (hollow beads) and the
-  highlighted destination pin. Converted from roadbook-mark.svg (viewBox
-  "78 50 362 384") by shifting all coordinates by (-78,-50) so the drawable's
-  viewport starts at 0,0. The source drop-shadow filter has no VectorDrawable
-  equivalent and is dropped — at header size the solid pin reads fine.
+  Roadbook mark (compact/bold): route + passed waypoints (solid nodes) + the
+  highlighted destination pin. Converted from roadbook-mark-compact.svg (viewBox
+  "72 46 372 392") by shifting all coordinates by (-72,-46) so the drawable's
+  viewport starts at 0,0. Thicker stroke than the original mark for legibility
+  at small header sizes.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="25dp"
-    android:viewportWidth="362"
-    android:viewportHeight="384">
+    android:viewportWidth="372"
+    android:viewportHeight="392">
 
-    <!-- route -->
+    <!-- route (bold) -->
     <path
-        android:pathData="M 22 350 C 90 266 72 214 158 202 S 264 182 302 100"
-        android:strokeWidth="14"
+        android:pathData="M 24 358 C 100 266 78 212 166 204 S 272 186 312 108"
+        android:strokeWidth="30"
         android:strokeLineCap="round">
         <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:strokeColor">
             <gradient
                 android:type="linear"
-                android:startX="43"
-                android:startY="384"
-                android:endX="308"
-                android:endY="19">
+                android:startX="45"
+                android:startY="392"
+                android:endX="316"
+                android:endY="20">
                 <item android:offset="0" android:color="#FF5E3A" />
                 <item android:offset="1" android:color="#FFA24A" />
             </gradient>
         </aapt:attr>
     </path>
 
-    <!-- passed waypoints (hollow beads) -->
+    <!-- passed waypoints (solid nodes) -->
     <path
-        android:pathData="M 54 304 m -11 0 a 11 11 0 1 0 22 0 a 11 11 0 1 0 -22 0"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5" />
+        android:pathData="M 60 302 m -16 0 a 16 16 0 1 0 32 0 a 16 16 0 1 0 -32 0"
+        android:fillColor="#FFFFFF" />
     <path
-        android:pathData="M 158 202 m -11 0 a 11 11 0 1 0 22 0 a 11 11 0 1 0 -22 0"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5" />
+        android:pathData="M 168 202 m -16 0 a 16 16 0 1 0 32 0 a 16 16 0 1 0 -32 0"
+        android:fillColor="#FFFFFF" />
 
     <!-- highlighted destination pin -->
-    <path android:pathData="M 302 52 m -34 0 a 34 34 0 1 0 68 0 a 34 34 0 1 0 -68 0">
+    <path android:pathData="M 312 58 m -42 0 a 42 42 0 1 0 84 0 a 42 42 0 1 0 -84 0">
         <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
             <gradient
                 android:type="linear"
-                android:startX="302" android:startY="18"
-                android:endX="302" android:endY="86">
+                android:startX="312" android:startY="16"
+                android:endX="312" android:endY="100">
                 <item android:offset="0" android:color="#FF7A45" />
                 <item android:offset="1" android:color="#F0421B" />
             </gradient>
         </aapt:attr>
     </path>
-    <path android:pathData="M 278 74 L 302 100 L 326 74 Z" android:fillColor="#F0421B" />
+    <path android:pathData="M 286 84 L 312 108 L 338 84 Z" android:fillColor="#F0421B" />
     <path
-        android:pathData="M 302 52 m -12.5 0 a 12.5 12.5 0 1 0 25 0 a 12.5 12.5 0 1 0 -25 0"
+        android:pathData="M 312 58 m -17 0 a 17 17 0 1 0 34 0 a 17 17 0 1 0 -34 0"
         android:fillColor="#FFFFFF" />
 </vector>
