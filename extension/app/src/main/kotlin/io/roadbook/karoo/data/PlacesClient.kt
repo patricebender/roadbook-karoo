@@ -2,17 +2,14 @@ package io.roadbook.karoo.data
 
 import io.hammerhead.karooext.KarooSystemService
 import io.hammerhead.karooext.models.HttpResponseState
-import io.hammerhead.karooext.models.OnHttpResponse
-import io.hammerhead.karooext.models.OnHttpResponse.MakeHttpRequest
 import io.roadbook.karoo.BuildConfig
-import kotlinx.coroutines.suspendCancellableCoroutine
+import io.roadbook.karoo.util.httpRequest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
-import kotlin.coroutines.resume
 
 /**
  * On-demand opening-hours lookup via Google Places API (New), for POIs where OSM has
@@ -81,12 +78,13 @@ class PlacesClient(private val system: KarooSystemService) {
             body = body,
             fieldMask = "places.id",
         ) ?: return null
-        if (complete.statusCode !in 200..299 || complete.body == null) {
+        val responseBody = complete.body
+        if (complete.statusCode !in 200..299 || responseBody == null) {
             Timber.d("places textSearch failed: ${complete.statusCode} ${complete.error}")
             return null
         }
         return runCatching {
-            json.parseToJsonElement(String(complete.body!!, Charsets.UTF_8))
+            json.parseToJsonElement(String(responseBody, Charsets.UTF_8))
                 .jsonObject["places"]?.jsonArray?.firstOrNull()
                 ?.jsonObject?.get("id")?.jsonPrimitive?.content
         }.getOrNull()
@@ -102,12 +100,13 @@ class PlacesClient(private val system: KarooSystemService) {
             url = "https://places.googleapis.com/v1/places/$placeId",
             fieldMask = "id,regularOpeningHours,formattedAddress,websiteUri,nationalPhoneNumber",
         ) ?: return null
-        if (complete.statusCode !in 200..299 || complete.body == null) {
+        val body = complete.body
+        if (complete.statusCode !in 200..299 || body == null) {
             Timber.d("places details failed: ${complete.statusCode} ${complete.error}")
             return null
         }
         return runCatching {
-            val root = json.parseToJsonElement(String(complete.body!!, Charsets.UTF_8)).jsonObject
+            val root = json.parseToJsonElement(String(body, Charsets.UTF_8)).jsonObject
             val hoursObj = root["regularOpeningHours"]?.jsonObject
             val hours = hoursObj?.let { OpeningHours.Hours.fromSchedule(parsePeriods(it)) }
                 // No hours from Google → an empty (unknown) schedule; contact still shows.
@@ -166,31 +165,16 @@ class PlacesClient(private val system: KarooSystemService) {
         body: ByteArray?,
         fieldMask: String,
     ): HttpResponseState.Complete? =
-        suspendCancellableCoroutine { cont ->
-            var consumerId: String? = null
-            consumerId = system.addConsumer(
-                MakeHttpRequest(
-                    method = method,
-                    url = url,
-                    headers = mapOf(
-                        "X-Goog-Api-Key" to apiKey,
-                        "X-Goog-FieldMask" to fieldMask,
-                        "Content-Type" to "application/json",
-                    ),
-                    body = body,
-                    waitForConnection = true,
-                ),
-            ) { event: OnHttpResponse ->
-                when (val state = event.state) {
-                    is HttpResponseState.Complete -> {
-                        consumerId?.let { system.removeConsumer(it) }
-                        if (cont.isActive) cont.resume(state)
-                    }
-                    else -> Unit
-                }
-            }
-            cont.invokeOnCancellation { consumerId?.let { system.removeConsumer(it) } }
-        }
+        system.httpRequest(
+            method = method,
+            url = url,
+            headers = mapOf(
+                "X-Goog-Api-Key" to apiKey,
+                "X-Goog-FieldMask" to fieldMask,
+                "Content-Type" to "application/json",
+            ),
+            body = body,
+        )
 
     /** JSON-encode a string value (quotes + escapes) for embedding in a request body. */
     private fun jsonString(s: String): String =

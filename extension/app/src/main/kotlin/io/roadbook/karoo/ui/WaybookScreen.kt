@@ -1,6 +1,5 @@
 package io.roadbook.karoo.ui
 
-import android.text.format.DateUtils
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -45,10 +44,6 @@ import io.roadbook.karoo.R
 import io.roadbook.karoo.build.BuildState
 import io.roadbook.karoo.data.OpeningHours
 import io.roadbook.karoo.data.Poi
-import java.util.Calendar
-
-// Neutral tint for the "hours exist but are seasonal/complex" chip.
-private val SeasonalGrey = Color(0xFF757575)
 
 /**
  * The Waybook ROUTE view: a header with build/clear/filter shortcuts and a live build

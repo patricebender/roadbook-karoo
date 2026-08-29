@@ -9,8 +9,9 @@ import java.io.File
  * The on-device POI database. Uses requery's bundled SQLite (guarantees the
  * R*Tree module, which Android's built-in SQLite may omit).
  *
- * On first run the app DB is seeded by copying the bundled Baden-Württemberg
- * asset. Additional regions are merged in later via [RegionInstaller].
+ * On first run the app DB is seeded by copying the bundled Baden-Württemberg asset.
+ * It re-seeds whenever [BUNDLED_DB_VERSION] outranks the installed `PRAGMA user_version`,
+ * so a schema/tags change ships a fresh copy. Coverage is single-region.
  */
 class PoiDatabase private constructor(private val dbFile: File) {
 

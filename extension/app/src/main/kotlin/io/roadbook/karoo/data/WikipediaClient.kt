@@ -1,16 +1,12 @@
 package io.roadbook.karoo.data
 
 import io.hammerhead.karooext.KarooSystemService
-import io.hammerhead.karooext.models.HttpResponseState
-import io.hammerhead.karooext.models.OnHttpResponse
-import io.hammerhead.karooext.models.OnHttpResponse.MakeHttpRequest
-import kotlinx.coroutines.suspendCancellableCoroutine
+import io.roadbook.karoo.util.httpRequest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import timber.log.Timber
 import java.net.URLEncoder
-import kotlin.coroutines.resume
 
 /**
  * Fetches a short place description from Wikipedia's REST summary endpoint, routed
@@ -36,13 +32,15 @@ class WikipediaClient(private val system: KarooSystemService) {
         val encoded = URLEncoder.encode(title.replace(' ', '_'), "UTF-8")
         val url = "https://$lang.wikipedia.org/api/rest_v1/page/summary/$encoded"
 
-        val complete = request(url) ?: return null
-        if (complete.statusCode !in 200..299 || complete.body == null) {
+        // Queue until the Karoo has a link (WiFi or paired phone).
+        val complete = system.httpRequest(method = "GET", url = url) ?: return null
+        val body = complete.body
+        if (complete.statusCode !in 200..299 || body == null) {
             Timber.d("wikipedia fetch failed: ${complete.statusCode} ${complete.error}")
             return null
         }
         return runCatching {
-            val obj = json.parseToJsonElement(String(complete.body!!, Charsets.UTF_8)).jsonObject
+            val obj = json.parseToJsonElement(String(body, Charsets.UTF_8)).jsonObject
             obj["extract"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
         }.getOrNull()
     }
@@ -57,27 +55,4 @@ class WikipediaClient(private val system: KarooSystemService) {
         if (!lang.all { it.isLetter() } || lang.length > 5) return null
         return lang to t.substring(colon + 1)
     }
-
-    /** One GET through the Karoo bridge; resolves on the Complete state. */
-    private suspend fun request(url: String): HttpResponseState.Complete? =
-        suspendCancellableCoroutine { cont ->
-            var consumerId: String? = null
-            consumerId = system.addConsumer(
-                MakeHttpRequest(
-                    method = "GET",
-                    url = url,
-                    // Queue until the Karoo has a link (WiFi or paired phone).
-                    waitForConnection = true,
-                ),
-            ) { event: OnHttpResponse ->
-                when (val state = event.state) {
-                    is HttpResponseState.Complete -> {
-                        consumerId?.let { system.removeConsumer(it) }
-                        if (cont.isActive) cont.resume(state)
-                    }
-                    else -> Unit // Queued / InProgress → keep waiting
-                }
-            }
-            cont.invokeOnCancellation { consumerId?.let { system.removeConsumer(it) } }
-        }
 }
