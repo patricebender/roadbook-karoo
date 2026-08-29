@@ -1,0 +1,56 @@
+<!--
+  Roadbook mark (compact/bold): route + passed waypoints (solid nodes) + the
+  highlighted destination pin. Converted from roadbook-mark-compact.svg (viewBox
+  "72 46 372 392") by shifting all coordinates by (-72,-46) so the drawable's
+  viewport starts at 0,0. Thicker stroke than the original mark for legibility
+  at small header sizes.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="25dp"
+    android:viewportWidth="372"
+    android:viewportHeight="392">
+
+    <!-- route (bold) -->
+    <path
+        android:pathData="M 24 358 C 100 266 78 212 166 204 S 272 186 312 108"
+        android:strokeWidth="30"
+        android:strokeLineCap="round">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="45"
+                android:startY="392"
+                android:endX="316"
+                android:endY="20">
+                <item android:offset="0" android:color="#FF5E3A" />
+                <item android:offset="1" android:color="#FFA24A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- passed waypoints (solid nodes) -->
+    <path
+        android:pathData="M 60 302 m -16 0 a 16 16 0 1 0 32 0 a 16 16 0 1 0 -32 0"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M 168 202 m -16 0 a 16 16 0 1 0 32 0 a 16 16 0 1 0 -32 0"
+        android:fillColor="#FFFFFF" />
+
+    <!-- highlighted destination pin -->
+    <path android:pathData="M 312 58 m -42 0 a 42 42 0 1 0 84 0 a 42 42 0 1 0 -84 0">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="312" android:startY="16"
+                android:endX="312" android:endY="100">
+                <item android:offset="0" android:color="#FF7A45" />
+                <item android:offset="1" android:color="#F0421B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M 286 84 L 312 108 L 338 84 Z" android:fillColor="#F0421B" />
+    <path
+        android:pathData="M 312 58 m -17 0 a 17 17 0 1 0 34 0 a 17 17 0 1 0 -34 0"
+        android:fillColor="#FFFFFF" />
+</vector>

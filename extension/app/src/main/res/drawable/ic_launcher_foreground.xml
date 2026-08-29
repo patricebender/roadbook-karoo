@@ -1,0 +1,63 @@
+<!--
+  Adaptive-icon foreground: route + destination pin from the roadbook mark,
+  scaled and centered into the adaptive-icon safe zone (inner ~66%). Authored
+  in 512-space to match the tile artwork, wrapped in a group that scales 0.62
+  about the canvas center so nothing is clipped by the icon mask.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group
+        android:scaleX="0.62"
+        android:scaleY="0.62"
+        android:pivotX="256"
+        android:pivotY="256">
+
+        <!-- route -->
+        <path
+            android:pathData="M 100 400 C 168 316 150 264 236 252 S 342 232 380 150"
+            android:strokeWidth="14"
+            android:strokeLineCap="round">
+            <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="121" android:startY="480"
+                    android:endX="386" android:endY="74">
+                    <item android:offset="0" android:color="#FF5E3A" />
+                    <item android:offset="1" android:color="#FFA24A" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- passed waypoints -->
+        <path
+            android:pathData="M 132 354 m -11 0 a 11 11 0 1 0 22 0 a 11 11 0 1 0 -22 0"
+            android:fillColor="#161A21"
+            android:strokeColor="#E9EDF3"
+            android:strokeWidth="5" />
+        <path
+            android:pathData="M 236 252 m -11 0 a 11 11 0 1 0 22 0 a 11 11 0 1 0 -22 0"
+            android:fillColor="#161A21"
+            android:strokeColor="#E9EDF3"
+            android:strokeWidth="5" />
+
+        <!-- highlighted waypoint -->
+        <path android:pathData="M 380 102 m -34 0 a 34 34 0 1 0 68 0 a 34 34 0 1 0 -68 0">
+            <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="380" android:startY="68"
+                    android:endX="380" android:endY="136">
+                    <item android:offset="0" android:color="#FF7A45" />
+                    <item android:offset="1" android:color="#F0421B" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:pathData="M 356 124 L 380 150 L 404 124 Z" android:fillColor="#F0421B" />
+        <path
+            android:pathData="M 380 102 m -12.5 0 a 12.5 12.5 0 1 0 25 0 a 12.5 12.5 0 1 0 -25 0"
+            android:fillColor="#FFFFFF" />
+    </group>
+</vector>

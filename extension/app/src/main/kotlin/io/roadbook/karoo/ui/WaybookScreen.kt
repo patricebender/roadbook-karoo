@@ -1,6 +1,7 @@
 package io.roadbook.karoo.ui
 
 import android.text.format.DateUtils
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,11 +34,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.roadbook.karoo.R
 import io.roadbook.karoo.build.BuildState
 import io.roadbook.karoo.data.OpeningHours
 import io.roadbook.karoo.data.Poi
@@ -69,9 +72,11 @@ fun WaybookScreen(
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Header(
-            count = pois.size,
             buildState = buildState,
             hasPins = pois.isNotEmpty(),
+            // When the body shows the big animated logo (first build, no pins yet),
+            // keep the header status line quiet so there's only one progress cue.
+            showStatusLine = pois.isNotEmpty() || buildState !is BuildState.Building,
             onBuild = onBuild,
             onClear = onClear,
             onOpenFilter = onOpenFilter,
@@ -79,7 +84,10 @@ fun WaybookScreen(
         HorizontalDivider()
 
         if (pois.isEmpty()) {
-            EmptyState(onOpenFilter)
+            // One stable layout for the no-places body: the mark sits in the same spot
+            // whether idle or building — starting a build just animates it in place and
+            // swaps the copy, so nothing jumps.
+            EmptyState(buildState, onOpenFilter)
             return@Column
         }
 
@@ -102,9 +110,9 @@ fun WaybookScreen(
 
 @Composable
 private fun Header(
-    count: Int,
     buildState: BuildState,
     hasPins: Boolean,
+    showStatusLine: Boolean,
     onBuild: () -> Unit,
     onClear: () -> Unit,
     onOpenFilter: () -> Unit,
@@ -117,15 +125,16 @@ private fun Header(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Logo mark only — no wordmark. The status line carries the context.
-        Icon(
-            Icons.Filled.Place,
+        // Image (not Icon) so the mark keeps its own route/pin gradients instead
+        // of being flattened to a single tint.
+        Image(
+            painter = painterResource(R.drawable.ic_roadbook_mark),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(24.dp),
         )
         Spacer(Modifier.size(10.dp))
         Box(modifier = Modifier.weight(1f)) {
-            BuildStatusLine(buildState, count)
+            if (showStatusLine) BuildStatusLine(buildState)
         }
         // Build/rebuild: primary tint when there's work, muted after a build. While
         // building the icon just goes disabled — the single spinner lives in the
@@ -152,9 +161,14 @@ private fun Header(
     }
 }
 
-/** The header's primary line: reflects the build lifecycle so the screen self-documents. */
+/**
+ * The header's primary line, only used for transient build feedback: the current build
+ * phase (with a spinner) and errors. The steady-state place count lives in the timeline
+ * strip below, so idle/success leave this line blank — the logo and action icons carry
+ * the header on their own.
+ */
 @Composable
-private fun BuildStatusLine(state: BuildState, count: Int) {
+private fun BuildStatusLine(state: BuildState) {
     when (state) {
         is BuildState.Building -> Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -167,13 +181,6 @@ private fun BuildStatusLine(state: BuildState, count: Int) {
             )
         }
 
-        is BuildState.Success -> Text(
-            "${state.count} places",
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-
         is BuildState.Error -> Text(
             state.message,
             style = MaterialTheme.typography.titleMedium,
@@ -182,17 +189,7 @@ private fun BuildStatusLine(state: BuildState, count: Int) {
             overflow = TextOverflow.Ellipsis,
         )
 
-        is BuildState.Idle -> Text(
-            if (count > 0) "$count places" else "No places — build to start",
-            style = MaterialTheme.typography.titleMedium,
-            color = if (count > 0) {
-                MaterialTheme.colorScheme.onSurface
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        is BuildState.Success, is BuildState.Idle -> Unit
     }
 }
 
@@ -314,8 +311,16 @@ private fun StatusChip(text: String, color: Color) {
     }
 }
 
+/**
+ * The no-places body, shared by the idle and building states so the layout never jumps:
+ * the mark holds the same slot throughout. Idle shows the static mark with a hint to load
+ * a route; while building, the same mark animates in place (route traced, waypoints
+ * lighting up) and the copy switches to the live build phase. The filter shortcut only
+ * shows at rest, so the searching state stays focused on the animation.
+ */
 @Composable
-private fun EmptyState(onOpenFilter: () -> Unit) {
+private fun EmptyState(buildState: BuildState, onOpenFilter: () -> Unit) {
+    val building = buildState is BuildState.Building
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -323,19 +328,39 @@ private fun EmptyState(onOpenFilter: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Same slot, same size — only the renderer changes when a build starts, so the
+        // static mark appears to spring to life rather than being replaced.
+        if (building) {
+            RoadbookLoadingLogo(size = 72.dp)
+        } else {
+            Image(
+                painter = painterResource(R.drawable.ic_roadbook_mark),
+                contentDescription = null,
+                modifier = Modifier.size(72.dp),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
         Text(
-            "No places yet",
+            if (building) (buildState as BuildState.Building).phase else "No places yet",
             style = MaterialTheme.typography.titleMedium,
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Load a route on the Karoo, then tap the build icon above.",
+            if (building) {
+                "Tracing your route for cafés, water, shops and more…"
+            } else {
+                "Load a route on the Karoo, then tap the build icon above."
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(16.dp))
+        // Kept in the layout while building (just hidden + non-clickable) so the block's
+        // height stays constant and the content above doesn't jump when it disappears.
         Row(
-            modifier = Modifier.clickable(onClick = onOpenFilter),
+            modifier = Modifier
+                .alpha(if (building) 0f else 1f)
+                .clickable(enabled = !building, onClick = onOpenFilter),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Filled.Tune, contentDescription = null)

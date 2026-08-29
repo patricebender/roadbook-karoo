@@ -1,9 +1,70 @@
+<!--
+  Roadbook icon tile: dark rounded tile with the route + destination pin.
+  Converted from roadbook-icon.svg (viewBox 0 0 512 512). Used as the app and
+  extension icon (manifest android:icon, extension_info). The source drop-shadow
+  filter is dropped (no VectorDrawable equivalent).
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- tile -->
+    <path android:pathData="M128,16 L384,16 A112,112 0 0 1 496,128 L496,384 A112,112 0 0 1 384,496 L128,496 A112,112 0 0 1 16,384 L16,128 A112,112 0 0 1 128,16 Z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="256" android:startY="16"
+                android:endX="256" android:endY="496">
+                <item android:offset="0" android:color="#20242B" />
+                <item android:offset="1" android:color="#121419" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- route -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,2C8.13,2 5,5.13 5,9c0,5.25 7,13 7,13s7,-7.75 7,-13c0,-3.87 -3.13,-7 -7,-7zM12,11.5c-1.38,0 -2.5,-1.12 -2.5,-2.5s1.12,-2.5 2.5,-2.5 2.5,1.12 2.5,2.5 -1.12,2.5 -2.5,2.5z" />
+        android:pathData="M 100 400 C 168 316 150 264 236 252 S 342 232 380 150"
+        android:strokeWidth="14"
+        android:strokeLineCap="round">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="121" android:startY="480"
+                android:endX="386" android:endY="74">
+                <item android:offset="0" android:color="#FF5E3A" />
+                <item android:offset="1" android:color="#FFA24A" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- passed waypoints -->
+    <path
+        android:pathData="M 132 354 m -11 0 a 11 11 0 1 0 22 0 a 11 11 0 1 0 -22 0"
+        android:fillColor="#161A21"
+        android:strokeColor="#E9EDF3"
+        android:strokeWidth="5" />
+    <path
+        android:pathData="M 236 252 m -11 0 a 11 11 0 1 0 22 0 a 11 11 0 1 0 -22 0"
+        android:fillColor="#161A21"
+        android:strokeColor="#E9EDF3"
+        android:strokeWidth="5" />
+
+    <!-- highlighted waypoint (tip on route end) -->
+    <path android:pathData="M 380 102 m -34 0 a 34 34 0 1 0 68 0 a 34 34 0 1 0 -68 0">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="380" android:startY="68"
+                android:endX="380" android:endY="136">
+                <item android:offset="0" android:color="#FF7A45" />
+                <item android:offset="1" android:color="#F0421B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M 356 124 L 380 150 L 404 124 Z" android:fillColor="#F0421B" />
+    <path
+        android:pathData="M 380 102 m -12.5 0 a 12.5 12.5 0 1 0 25 0 a 12.5 12.5 0 1 0 -25 0"
+        android:fillColor="#FFFFFF" />
 </vector>
