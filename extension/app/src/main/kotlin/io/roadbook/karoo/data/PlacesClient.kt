@@ -35,10 +35,20 @@ class PlacesClient(private val system: KarooSystemService) {
 
     val isConfigured: Boolean get() = apiKey.isNotEmpty()
 
-    /** Resolved place + its hours as the same normalized model OSM produces. */
+    /**
+     * Resolved place: hours as the same normalized model OSM produces, plus the extra
+     * contact fields so a Google-sourced POI can render identically to an OSM one.
+     *
+     * [address], [website], [phone] are Places *content* under the same Maps ToS as the
+     * hours — displayable live (with attribution), never persisted. They ride in the same
+     * short-TTL in-memory cache as [hours], so this doesn't regress the caching policy.
+     */
     data class Result(
         val placeId: String,
         val hours: OpeningHours.Hours,
+        val address: String? = null,
+        val website: String? = null,
+        val phone: String? = null,
     )
 
     /**
@@ -82,11 +92,15 @@ class PlacesClient(private val system: KarooSystemService) {
         }.getOrNull()
     }
 
-    /** Place Details (New) → regularOpeningHours, parsed into our schedule shape. */
+    /**
+     * Place Details (New) → hours + contact fields, so a Google-sourced POI renders like
+     * an OSM one. Returns a Result whenever the place resolves, even with no hours (empty
+     * schedule → "unknown"), so the address/website still surface.
+     */
     private suspend fun details(placeId: String): Result? {
         val complete = get(
             url = "https://places.googleapis.com/v1/places/$placeId",
-            fieldMask = "id,regularOpeningHours",
+            fieldMask = "id,regularOpeningHours,formattedAddress,websiteUri,nationalPhoneNumber",
         ) ?: return null
         if (complete.statusCode !in 200..299 || complete.body == null) {
             Timber.d("places details failed: ${complete.statusCode} ${complete.error}")
@@ -94,9 +108,17 @@ class PlacesClient(private val system: KarooSystemService) {
         }
         return runCatching {
             val root = json.parseToJsonElement(String(complete.body!!, Charsets.UTF_8)).jsonObject
-            val hoursObj = root["regularOpeningHours"]?.jsonObject ?: return@runCatching null
-            // Normalize to the same model OSM produces so the UI treats them identically.
-            Result(placeId, OpeningHours.Hours.fromSchedule(parsePeriods(hoursObj)))
+            val hoursObj = root["regularOpeningHours"]?.jsonObject
+            val hours = hoursObj?.let { OpeningHours.Hours.fromSchedule(parsePeriods(it)) }
+                // No hours from Google → an empty (unknown) schedule; contact still shows.
+                ?: OpeningHours.Hours.fromSchedule(emptyMap())
+            Result(
+                placeId = placeId,
+                hours = hours,
+                address = root["formattedAddress"]?.jsonPrimitive?.content,
+                website = root["websiteUri"]?.jsonPrimitive?.content,
+                phone = root["nationalPhoneNumber"]?.jsonPrimitive?.content,
+            )
         }.onFailure { Timber.w(it, "places details parse failed") }.getOrNull()
     }
 

@@ -69,7 +69,6 @@ fun WaybookScreen(
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Header(
-            count = pois.size,
             buildState = buildState,
             hasPins = pois.isNotEmpty(),
             onBuild = onBuild,
@@ -102,7 +101,6 @@ fun WaybookScreen(
 
 @Composable
 private fun Header(
-    count: Int,
     buildState: BuildState,
     hasPins: Boolean,
     onBuild: () -> Unit,
@@ -125,7 +123,7 @@ private fun Header(
         )
         Spacer(Modifier.size(10.dp))
         Box(modifier = Modifier.weight(1f)) {
-            BuildStatusLine(buildState, count)
+            BuildStatusLine(buildState)
         }
         // Build/rebuild: primary tint when there's work, muted after a build. While
         // building the icon just goes disabled — the single spinner lives in the
@@ -152,9 +150,14 @@ private fun Header(
     }
 }
 
-/** The header's primary line: reflects the build lifecycle so the screen self-documents. */
+/**
+ * The header's primary line, only used for transient build feedback: the current build
+ * phase (with a spinner) and errors. The steady-state place count lives in the timeline
+ * strip below, so idle/success leave this line blank — the logo and action icons carry
+ * the header on their own.
+ */
 @Composable
-private fun BuildStatusLine(state: BuildState, count: Int) {
+private fun BuildStatusLine(state: BuildState) {
     when (state) {
         is BuildState.Building -> Row(verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -167,13 +170,6 @@ private fun BuildStatusLine(state: BuildState, count: Int) {
             )
         }
 
-        is BuildState.Success -> Text(
-            "${state.count} places",
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-
         is BuildState.Error -> Text(
             state.message,
             style = MaterialTheme.typography.titleMedium,
@@ -182,17 +178,7 @@ private fun BuildStatusLine(state: BuildState, count: Int) {
             overflow = TextOverflow.Ellipsis,
         )
 
-        is BuildState.Idle -> Text(
-            if (count > 0) "$count places" else "No places — build to start",
-            style = MaterialTheme.typography.titleMedium,
-            color = if (count > 0) {
-                MaterialTheme.colorScheme.onSurface
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        is BuildState.Success, is BuildState.Idle -> Unit
     }
 }
 

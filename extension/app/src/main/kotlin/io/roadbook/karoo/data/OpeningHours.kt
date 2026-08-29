@@ -57,17 +57,25 @@ object OpeningHours {
      *
      * - [schedule]: day (0=Mon..6=Sun) → time ranges; a missing/empty day is closed.
      * - [is247]: always open; rendered as a single "Open 24/7" line, not seven rows.
-     * - [rawFallback]: an OSM spec we couldn't structure — shown verbatim in detail,
-     *   with no open/closed claim in the list.
+     * - [rawFallback]: an OSM spec we couldn't structure at all — shown verbatim, with
+     *   no open/closed claim.
+     * - [seasonal]: we parsed a usable base week, but dropped one or more month-scoped
+     *   rules (e.g. "May-Sep …"). The table is the off-season/base hours; the UI notes
+     *   that hours vary seasonally so we don't imply the table is the whole story.
      */
     class Hours private constructor(
         val schedule: Map<Int, List<TimeRange>>,
         val is247: Boolean,
         val rawFallback: String?,
+        val seasonal: Boolean = false,
+        // We have a source that resolved the place but carries no usable hours (e.g. a
+        // Google result with an empty schedule). Distinct from a genuine all-closed week:
+        // an empty schedule must read as "unknown", never as a false "Closed".
+        val unknown: Boolean = false,
     ) {
         fun status(now: Calendar = Calendar.getInstance()): Status {
             if (is247) return Status(OpenState.OPEN)
-            if (rawFallback != null) return Status(OpenState.UNKNOWN)
+            if (unknown || rawFallback != null) return Status(OpenState.UNKNOWN)
             return statusOf(schedule, now)
         }
 
@@ -76,21 +84,30 @@ object OpeningHours {
             fun fromOsm(spec: String): Hours {
                 val s = spec.trim()
                 if (s == "24/7") return Hours(emptyMap(), is247 = true, rawFallback = null)
-                val sched = schedule(s)
-                return if (sched != null) {
-                    Hours(sched, is247 = false, rawFallback = null)
+                val parsed = parse(s)
+                return if (parsed != null) {
+                    Hours(parsed.schedule, is247 = false, rawFallback = null, seasonal = parsed.seasonal)
                 } else {
                     Hours(emptyMap(), is247 = false, rawFallback = s)
                 }
             }
 
-            /** Wrap an already-structured schedule (e.g. from Google Places). */
+            /**
+             * Wrap an already-structured schedule (e.g. from Google Places). An empty
+             * schedule means the place resolved but has no hours on record → [unknown],
+             * not closed.
+             */
             fun fromSchedule(schedule: Map<Int, List<TimeRange>>): Hours {
+                if (schedule.isEmpty()) return unknown()
                 val is247 = (0..6).all { day ->
                     schedule[day]?.any { it.startMin == 0 && it.endMin >= 24 * 60 } == true
                 }
                 return Hours(if (is247) emptyMap() else schedule, is247, rawFallback = null)
             }
+
+            /** No usable hours from any source — renders as "unknown", never "closed". */
+            fun unknown(): Hours =
+                Hours(emptyMap(), is247 = false, rawFallback = null, unknown = true)
         }
     }
 
@@ -109,26 +126,106 @@ object OpeningHours {
             else -> 6 // Sunday
         }
 
+    /** A parsed weekly schedule, plus whether we dropped seasonal (month-scoped) rules. */
+    private data class Parsed(val schedule: Map<Int, List<TimeRange>>, val seasonal: Boolean)
+
+    // Month abbreviations (1-based: Jan=1) — a rule that leads with one is season-scoped
+    // (e.g. "May-Sep …", "Mar 01-Sep 30 …").
+    private val MONTHS = listOf(
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    )
+
     /**
-     * Parse the spec into per-day time ranges (0=Mon … 6=Sun). Returns null if the
-     * spec uses features we don't parse (PH, months, comments, offsets, 24/7 is
-     * special-cased by callers). Days with no entry are treated as closed.
+     * Parse the spec into per-day time ranges (0=Mon … 6=Sun). Returns null only when
+     * *nothing* usable survives; a spec with a parseable base week plus month-scoped
+     * variants yields the base week with [Parsed.seasonal] set. Days with no entry are
+     * closed. Public-holiday (PH) and school-holiday (SH) tokens are ignored (they're
+     * not weekdays); `off` rules mark days closed by omission; a trailing `+` on a time
+     * (open-ended) is treated as a plain closing time.
+     *
+     * Month-scoped rules are handled two ways: if a plain (non-month) base week exists,
+     * the month rules are dropped and only [Parsed.seasonal] is flagged. But if the spec
+     * is *entirely* season-scoped (e.g. summer/winter hours, no base week — common for
+     * beer gardens and lakeside cafés), we render the season matching *today* as the
+     * table rather than falling back to raw, still flagging it seasonal.
      */
-    fun schedule(spec: String): Map<Int, List<TimeRange>>? {
+    private fun parse(spec: String, now: Calendar = Calendar.getInstance()): Parsed? {
         val s = spec.trim()
         if (s.isEmpty()) return null
-        if (s == "24/7") return (0..6).associateWith { listOf(TimeRange(0, 24 * 60)) }
+        if (s == "24/7") return Parsed((0..6).associateWith { listOf(TimeRange(0, 24 * 60)) }, false)
 
+        val month = now.get(Calendar.MONTH) + 1 // Calendar.MONTH is 0-based
         val byDay = HashMap<Int, MutableList<TimeRange>>()
+        // Month rules matching today, held back so a plain base week wins if one exists.
+        val inSeasonRules = mutableListOf<String>()
         var sawAny = false
+        var seasonal = false
         for (rule in splitRules(s)) {
-            val parsed = parseRuleRanges(rule.trim()) ?: continue // skip unparsable rule
+            val r = rule.trim()
+            if (r.isEmpty()) continue
+            val monthSpan = leadingMonthSpan(r)
+            if (monthSpan != null) {
+                seasonal = true
+                // Keep the day/time part of rules whose month range covers today; used only
+                // if no plain base week is found below.
+                if (month in monthSpan.first) inSeasonRules.add(monthSpan.second)
+                continue
+            }
+            val parsed = parseRuleRanges(r) ?: continue // skip unparsable / "off" rules
+            if (parsed.second.isEmpty()) continue
             sawAny = true
             for (day in parsed.first) {
                 byDay.getOrPut(day) { mutableListOf() }.addAll(parsed.second)
             }
         }
-        return if (sawAny) byDay else null
+        // No plain base week, but we have this season's rules → build the table from those.
+        if (!sawAny) {
+            for (r in inSeasonRules) {
+                val parsed = parseRuleRanges(r) ?: continue
+                if (parsed.second.isEmpty()) continue
+                sawAny = true
+                for (day in parsed.first) {
+                    byDay.getOrPut(day) { mutableListOf() }.addAll(parsed.second)
+                }
+            }
+        }
+        return if (sawAny) Parsed(byDay, seasonal) else null
+    }
+
+    /**
+     * If [rule] begins with a month range (e.g. "May-Sep", "Mar 01-Sep 30", or a single
+     * "Dec"), return the covered set of 1-based months paired with the rest of the rule
+     * (the day/time part). Otherwise null. Day-of-month parts are ignored — month
+     * granularity is enough to pick the right season for the table.
+     */
+    private fun leadingMonthSpan(rule: String): Pair<Set<Int>, String>? {
+        val start = MONTHS.indexOf(rule.take(3)) // 0-based month, or -1
+        if (start < 0) return null
+        // Consume "Mmm[ dd][-Mmm[ dd]]" from the front; the remainder is the day/time part.
+        // Find where the month scope ends: after an optional "-EndMonth[ dd]".
+        var i = 3
+        fun skipDayNum() {
+            while (i < rule.length && rule[i] == ' ') i++
+            while (i < rule.length && rule[i].isDigit()) i++
+        }
+        skipDayNum()
+        var end = start
+        if (i < rule.length && rule[i] == '-') {
+            i++
+            while (i < rule.length && rule[i] == ' ') i++
+            val endMon = MONTHS.indexOf(rule.substring(i, minOf(i + 3, rule.length)))
+            if (endMon < 0) return null // "Mar-<not a month>" — don't treat as month-scoped
+            end = endMon
+            i += 3
+            skipDayNum()
+        }
+        val rest = rule.substring(i).trim()
+        val months = buildSet {
+            var m = start
+            while (true) { add(m + 1); if (m == end) break; m = (m + 1) % 12 }
+        }
+        return months to rest
     }
 
     /** Live status from a normalized [schedule] at [now]. */
@@ -210,6 +307,7 @@ object OpeningHours {
         val timesPart = rule.substring(timeStart).trim()
 
         val days = if (daysPart.isEmpty()) (0..6).toSet() else parseDays(daysPart) ?: return null
+        if (days.isEmpty()) return null // e.g. "PH 09:00-13:00" — no weekday to place it on
 
         val ranges = mutableListOf<TimeRange>()
         for (range in timesPart.split(',')) {
@@ -219,11 +317,17 @@ object OpeningHours {
         return days to ranges
     }
 
-    /** Parse "Mo-Fr" / "Mo,We,Fr" / "Mo" into a set of day indices, or null. */
+    // Non-weekday day selectors we tolerate by ignoring: public/school holidays. A rule
+    // scoped only to these yields an empty day set and is skipped, but their presence
+    // alongside real weekdays (e.g. "Su,PH off") no longer sinks the whole spec.
+    private val IGNORED_DAY_TOKENS = setOf("PH", "SH")
+
+    /** Parse "Mo-Fr" / "Mo,We,Fr" / "Su,PH" into a set of day indices, or null. */
     private fun parseDays(part: String): Set<Int>? {
         val out = mutableSetOf<Int>()
         for (token in part.split(',')) {
             val t = token.trim()
+            if (t in IGNORED_DAY_TOKENS) continue
             if (t.contains('-')) {
                 val (a, b) = t.split('-').map { it.trim() }
                 val ia = DAYS.indexOf(a); val ib = DAYS.indexOf(b)
@@ -249,7 +353,8 @@ object OpeningHours {
     }
 
     private fun parseHhmm(v: String): Int? {
-        val p = v.trim().split(':')
+        // Tolerate an open-ended "+" suffix (e.g. "17:00+") as a plain time.
+        val p = v.trim().trimEnd('+').trim().split(':')
         if (p.size != 2) return null
         val h = p[0].toIntOrNull() ?: return null
         val m = p[1].toIntOrNull() ?: return null
@@ -258,6 +363,8 @@ object OpeningHours {
     }
 
     private fun hhmm(min: Int): String {
+        // A close at exactly end-of-day reads better as "24:00" than "00:00".
+        if (min == 24 * 60) return "24:00"
         val m = min % (24 * 60)
         return "%02d:%02d".format(m / 60, m % 60)
     }

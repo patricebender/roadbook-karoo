@@ -23,6 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.TravelExplore
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -78,7 +81,6 @@ fun PoiDetailScreen(
 ) {
     val style = styleForType(poi.type)
     val context = LocalContext.current
-    val address = remember(poi.tags) { formatAddress(poi.tags) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Back arrow gets its own row so the hero below can center cleanly.
@@ -114,38 +116,68 @@ fun PoiDetailScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            // Route context as centered chips (distance along / detour). Absent off-route.
-            val chips = buildList {
+            // Hours are resolved once, here, so the status pill and the hours block agree
+            // and both reflect a Google lookup once it lands. OSM is primary; the Google
+            // result (seeded from cache, updated by the fetch button) fills the gap.
+            val osmHours = remember(poi.tags) {
+                poi.tags["opening_hours"]?.let { OpeningHours.Hours.fromOsm(it) }
+            }
+            var googleHours by remember(poi.id) { mutableStateOf(cachedGoogleHours) }
+            val hours = osmHours ?: googleHours?.hours
+
+            // Contact fields are source-agnostic: OSM first, then the Google result once
+            // it's fetched — so the page looks the same however the data arrived.
+            val address = remember(poi.tags, googleHours) {
+                formatAddress(poi.tags) ?: googleHours?.address
+            }
+            val website = poi.tags["website"] ?: googleHours?.website
+            val phone = poi.tags["phone"] ?: googleHours?.phone
+
+            // Status pill sits centered on its own line, above the route context pills,
+            // so a long "Open 24/7" + "at 12.3 km" + "detour 400 m" never crowds one row.
+            val statusPill = remember(hours) { statusPillFor(hours) }
+            statusPill?.let {
+                Spacer(Modifier.height(10.dp))
+                Pill(it.text, it.color, Color.White)
+            }
+            val routePills = buildList {
                 poi.distancesAlongRoute.firstOrNull()?.let { add("at ${formatDistance(it)}") }
                 if (hasRoute && poi.detourMeters > 0) add("detour ${formatDistance(poi.detourMeters)}")
             }
-            if (chips.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
+            if (routePills.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    chips.forEach { OutlineChip(it) }
+                    routePills.forEach { OutlineChip(it) }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // At-a-glance card: open/closed status, then where it is and how to call.
-            InfoCard {
-                OpeningHoursStatus(poi.tags["opening_hours"], cachedGoogleHours, loadGoogleHours)
-                address?.let {
-                    Spacer(Modifier.height(10.dp))
-                    IconTextRow(Icons.Filled.Place, it)
-                }
-                poi.tags["phone"]?.let {
-                    Spacer(Modifier.height(10.dp))
-                    IconTextRow(Icons.Filled.Call, it)
+            // Opening hours: the "opens…"/24-7 line, the weekday table, or the on-demand
+            // Google lookup when OSM has none.
+            OpeningHoursBlock(
+                osmHours = osmHours,
+                googleHours = googleHours,
+                onGoogleHours = { googleHours = it },
+                loadGoogleHours = loadGoogleHours,
+            )
+
+            // Address + phone.
+            if (address != null || phone != null) {
+                Spacer(Modifier.height(16.dp))
+                SectionLabel("Contact")
+                Spacer(Modifier.height(6.dp))
+                InfoCard {
+                    address?.let { IconTextRow(Icons.Filled.Place, it) }
+                    phone?.let {
+                        if (address != null) Spacer(Modifier.height(10.dp))
+                        IconTextRow(Icons.Filled.Call, it)
+                    }
                 }
             }
 
-            // Full weekday hours table, when we have a structured schedule.
-            HoursTableSection(poi.tags["opening_hours"], cachedGoogleHours)
-
-            // Website as a centered, scannable QR.
-            poi.tags["website"]?.let {
+            // Website as a scannable QR, in the same block style.
+            website?.let {
                 Spacer(Modifier.height(16.dp))
                 WebsiteQr(it, context)
             }
@@ -164,100 +196,71 @@ fun PoiDetailScreen(
 }
 
 /**
- * The status line inside the at-a-glance card: the open/closed (or seasonal) badge from
- * OSM, or an on-demand Google lookup when OSM has none. Just the badge — the full
- * weekday table lives in its own section below.
+ * The Opening hours block: an "Opening hours" section label over a card holding the
+ * details — the weekday table, the "opens …" line for a closed place, a plain line for
+ * 24/7 or seasonal, or the on-demand Google lookup when OSM has none. The open/closed
+ * headline itself now lives in the hero pill row, so this block is detail-only.
  */
 @Composable
-private fun OpeningHoursStatus(
-    osmHours: String?,
-    cachedGoogleHours: PlacesClient.Result?,
+private fun OpeningHoursBlock(
+    osmHours: OpeningHours.Hours?,
+    googleHours: PlacesClient.Result?,
+    onGoogleHours: (PlacesClient.Result?) -> Unit,
     loadGoogleHours: (suspend () -> PlacesClient.Result?)?,
 ) {
-    val osm = remember(osmHours) { osmHours?.let { OpeningHours.Hours.fromOsm(it) } }
-    when {
-        osm != null -> HoursSummary(osm, viaGoogle = false)
-        loadGoogleHours == null -> Text(
-            "Hours not available",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        else -> GoogleHoursFallback(cachedGoogleHours, loadGoogleHours)
+    // Nothing to show and no way to look it up → skip the block entirely.
+    if (osmHours == null && loadGoogleHours == null) return
+
+    SectionLabel("Opening hours")
+    Spacer(Modifier.height(6.dp))
+    InfoCard {
+        when {
+            osmHours != null -> HoursDetail(osmHours, viaGoogle = false)
+            googleHours != null -> HoursDetail(googleHours.hours, viaGoogle = true)
+            else -> GoogleHoursFallback(loadGoogleHours!!, onGoogleHours)
+        }
     }
 }
 
-/** Badge + optional "opens …" / "Open 24/7" line, shared by OSM and Google. */
+/** The hours detail: weekday table, or the "opens…"/24-7/seasonal line, + attribution. */
 @Composable
-private fun HoursSummary(hours: OpeningHours.Hours, viaGoogle: Boolean) {
+private fun HoursDetail(hours: OpeningHours.Hours, viaGoogle: Boolean) {
     val today = remember { todayIndex() }
     val status = remember(hours) { hours.status() }
 
-    if (hours.rawFallback != null) {
-        Badge("Seasonal", SeasonalGrey)
-        Spacer(Modifier.height(6.dp))
-        Text(hours.rawFallback!!, style = MaterialTheme.typography.bodyMedium)
-    } else {
-        HoursBadge(status.state, status.opensAtLabel(today))
-        if (hours.is247) {
-            Spacer(Modifier.height(6.dp))
-            Text("Open 24/7", style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-
-    if (viaGoogle) {
-        Spacer(Modifier.height(6.dp))
-        Text(
-            "via Google",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/** Button → live Google fetch → the same [HoursSummary], with "via Google" attribution. */
-@Composable
-private fun GoogleHoursFallback(
-    cached: PlacesClient.Result?,
-    loadGoogleHours: suspend () -> PlacesClient.Result?,
-) {
-    // Seed from a still-fresh cached fetch so reopening shows hours instantly.
-    var result by remember { mutableStateOf(cached) }
-    var loading by remember { mutableStateOf(false) }
-    var failed by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
     when {
-        result != null -> HoursSummary(result!!.hours, viaGoogle = true)
-        loading -> Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-            Text("Checking Google…", style = MaterialTheme.typography.bodySmall)
-        }
+        hours.is247 -> Text("Open 24 hours, every day", style = MaterialTheme.typography.bodyMedium)
+        hours.rawFallback != null ->
+            Text(hours.rawFallback!!, style = MaterialTheme.typography.bodyMedium)
+        // Resolved but no hours on record (e.g. Google had none) → a clean centered
+        // "not listed" note, never a false table or a "Closed" claim. Terminal: we've
+        // already looked, so no action here. The "via Google" footer is redundant with
+        // the copy, so it's suppressed below for this case.
+        hours.unknown || hours.schedule.isEmpty() -> UnknownHoursNote(viaGoogle)
         else -> {
-            Text(
-                "Not in OpenStreetMap.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedButton(onClick = {
-                failed = false
-                loading = true
-                scope.launch {
-                    result = loadGoogleHours()
-                    failed = result == null
-                    loading = false
+            // When closed now, lead with a centered "opens …" callout, then the full week.
+            if (status.state == OpeningHours.OpenState.CLOSED) {
+                status.opensAtLabel(today)?.let {
+                    OpensCallout(it)
+                    Spacer(Modifier.height(10.dp))
                 }
-            }) {
-                Text("Check hours on Google")
             }
-            if (failed) {
-                Spacer(Modifier.height(6.dp))
+            HoursTable(schedule = hours.schedule, today = today)
+            // We parsed a base week but dropped month-scoped variants — say so, so the
+            // table isn't mistaken for the complete year-round picture.
+            if (hours.seasonal) {
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    "Couldn't find hours.",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Hours may vary seasonally.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (viaGoogle) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "via Google",
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -266,47 +269,181 @@ private fun GoogleHoursFallback(
 }
 
 /**
- * The weekday × hours table, in its own card under an "Opening hours" label. Only shown
- * when OSM (or an already-fetched Google result) gives a structured schedule — the card
- * is skipped for 24/7, seasonal, or unknown cases, whose summary lives in the card above.
+ * "Hours not listed" — the honest terminal state when a source resolved the place but
+ * carries no usable hours. Centered, muted, no open/closed claim; a [viaGoogle] flag
+ * notes we already checked Google so the rider knows there's nothing more to try.
  */
 @Composable
-private fun HoursTableSection(osmHours: String?, cachedGoogleHours: PlacesClient.Result?) {
-    val hours = remember(osmHours, cachedGoogleHours) {
-        osmHours?.let { OpeningHours.Hours.fromOsm(it) } ?: cachedGoogleHours?.hours
-    }
-    // A table only makes sense for a plain weekday schedule.
-    if (hours == null || hours.is247 || hours.rawFallback != null) return
-    if (hours.schedule.isEmpty()) return
-
-    Spacer(Modifier.height(16.dp))
-    SectionLabel("Opening hours")
-    Spacer(Modifier.height(6.dp))
-    InfoCard {
-        HoursTable(schedule = hours.schedule, today = remember { todayIndex() })
+private fun UnknownHoursNote(viaGoogle: Boolean) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            Icons.Filled.Schedule,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(28.dp),
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Hours not listed",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        if (viaGoogle) {
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Google has none for this place",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
 /**
- * Open/Closed badge. When closed, the "opens …" text drops to its own line so it stays
- * readable on the narrow display.
+ * The "opens Mon 08:00" reopen time for a currently-closed place, as a centered soft
+ * callout: a clock glyph, a muted "opens" lead-in, and the day/time emphasized. Reads as
+ * the one thing a closed rider wants to know, without shouting.
  */
 @Composable
-private fun HoursBadge(state: OpeningHours.OpenState, opensAt: String?) {
-    when (state) {
-        OpeningHours.OpenState.OPEN -> Badge("Open now", OpenGreen)
-        OpeningHours.OpenState.CLOSED -> Column {
-            Badge("Closed", ClosedRed)
-            opensAt?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(it, style = MaterialTheme.typography.bodyMedium)
-            }
-        }
-        OpeningHours.OpenState.UNKNOWN -> Text(
-            "Hours unknown",
+private fun OpensCallout(label: String) {
+    // Split the leading "opens " so the day+time can be weighted differently.
+    val (lead, rest) = label.split(" ", limit = 2).let {
+        if (it.size == 2) it[0] to it[1] else "opens" to label
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(ClosedRed.copy(alpha = 0.10f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.Schedule,
+            contentDescription = null,
+            tint = ClosedRed,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.size(8.dp))
+        Text(
+            "$lead ",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Text(
+            rest,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+/**
+ * Button → live Google fetch. The result is lifted to the parent via [onGoogleHours] so
+ * the status pill updates too; the parent then re-renders this block as [HoursDetail].
+ */
+@Composable
+private fun GoogleHoursFallback(
+    loadGoogleHours: suspend () -> PlacesClient.Result?,
+    onGoogleHours: (PlacesClient.Result?) -> Unit,
+) {
+    var loading by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    val fetch: () -> Unit = {
+        failed = false
+        loading = true
+        scope.launch {
+            val result = loadGoogleHours()
+            onGoogleHours(result)
+            failed = result == null
+            loading = false
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        when {
+            loading -> {
+                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Searching Google…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // Nothing came back from Google either — say so plainly and offer one more try.
+            failed -> {
+                Text(
+                    "Google doesn't list hours for this place.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(onClick = fetch) { Text("Search again") }
+            }
+
+            // First view: OSM has no hours; offer a single, explicit Google lookup.
+            else -> {
+                Icon(
+                    Icons.Filled.Schedule,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(28.dp),
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "No opening hours on record",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Check Google for this place",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(14.dp))
+                Button(onClick = fetch) {
+                    Icon(
+                        Icons.Filled.TravelExplore,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text("Search Google")
+                }
+            }
+        }
+    }
+}
+
+/** A color-coded status headline for the hero pill row, derived from resolved hours. */
+private data class StatusPill(val text: String, val color: Color)
+
+/** Resolve the open/closed/seasonal/24-7 pill from already-parsed [hours]. */
+private fun statusPillFor(hours: OpeningHours.Hours?): StatusPill? {
+    if (hours == null) return null
+    if (hours.rawFallback != null) return StatusPill("Seasonal", SeasonalGrey)
+    if (hours.is247) return StatusPill("Open 24/7", OpenGreen)
+    return when (hours.status().state) {
+        OpeningHours.OpenState.OPEN -> StatusPill("Open now", OpenGreen)
+        OpeningHours.OpenState.CLOSED -> StatusPill("Closed", ClosedRed)
+        OpeningHours.OpenState.UNKNOWN -> null
     }
 }
 
@@ -346,34 +483,28 @@ private fun HoursTable(schedule: Map<Int, List<OpeningHours.TimeRange>>, today: 
     }
 }
 
+/** A filled, color-coded pill (e.g. the open/closed status headline). */
 @Composable
-private fun Badge(text: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(color)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-    ) {
-        Text(text, color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-    }
-}
-
-/** A small outlined pill for route context (distance along / detour). */
-@Composable
-private fun OutlineChip(text: String) {
+private fun Pill(text: String, background: Color, contentColor: Color) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(background)
             .padding(horizontal = 12.dp, vertical = 4.dp),
     ) {
         Text(
             text,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Bold,
+            color = contentColor,
         )
     }
 }
+
+/** A neutral pill for route context (distance along / detour). */
+@Composable
+private fun OutlineChip(text: String) =
+    Pill(text, MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
 
 /** A rounded panel grouping related detail rows against a subtle tinted background. */
 @Composable
@@ -427,42 +558,48 @@ private fun formatAddress(tags: Map<String, String>): String? {
 }
 
 /**
- * Website as a centered QR code: far easier to open on a phone than reading and typing a
- * URL off the Karoo. Tapping it still opens the link directly if a browser is reachable.
+ * Website block: a scannable QR (far easier to open on a phone than typing a URL off the
+ * Karoo) plus the URL, centered inside the same card style as the other blocks. Tapping
+ * the QR still opens the link directly if a browser is reachable.
  */
 @Composable
 private fun WebsiteQr(url: String, context: android.content.Context) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        SectionLabel("Website")
-        Spacer(Modifier.height(8.dp))
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
-                .padding(10.dp),
+    SectionLabel("Website")
+    Spacer(Modifier.height(6.dp))
+    InfoCard {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Image(
-                painter = rememberQrCodePainter(url),
-                contentDescription = "QR code for $url",
+            Box(
                 modifier = Modifier
-                    .size(140.dp)
-                    .clickable {
-                        runCatching {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
-                        }
-                    },
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White)
+                    .padding(10.dp),
+            ) {
+                Image(
+                    painter = rememberQrCodePainter(url),
+                    contentDescription = "QR code for $url",
+                    modifier = Modifier
+                        .size(140.dp)
+                        .clickable {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
+                        },
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                url,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            url,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
