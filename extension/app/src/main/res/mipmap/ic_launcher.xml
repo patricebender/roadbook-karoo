@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy launcher icon (API < 26): the full tile drawable. API 26+ uses the
+     adaptive icon in mipmap-anydpi-v26. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_roadbook" />
