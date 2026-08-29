@@ -457,6 +457,7 @@ private fun HoursTable(schedule: Map<Int, List<OpeningHours.TimeRange>>, today: 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
             ) {
                 Text(
                     OpeningHours.DAY_LABELS[day],
@@ -468,16 +469,28 @@ private fun HoursTable(schedule: Map<Int, List<OpeningHours.TimeRange>>, today: 
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
                 )
-                Text(
-                    if (ranges.isEmpty()) "Closed" else ranges.joinToString(", ") { it.format() },
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                    color = if (ranges.isEmpty()) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                // Each window on its own line, right-aligned: a split day
+                // ("08:00–12:00, 13:00–18:00") won't collide with the day label
+                // or wrap awkwardly on the narrow screen.
+                Column(horizontalAlignment = Alignment.End) {
+                    if (ranges.isEmpty()) {
+                        Text(
+                            "Closed",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                )
+                        for (r in ranges) {
+                            Text(
+                                r.format(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
             }
         }
     }
