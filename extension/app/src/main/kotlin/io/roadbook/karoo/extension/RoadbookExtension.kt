@@ -16,6 +16,7 @@ import io.roadbook.karoo.data.Poi
 import io.roadbook.karoo.data.PoiDatabase
 import io.roadbook.karoo.data.PoiQuery
 import io.roadbook.karoo.data.RoadbookRepository
+import io.roadbook.karoo.util.withKarooConnection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -50,14 +51,8 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
         if (actionId != ACTION_BUILD) return
         Timber.d("onBonusAction: build")
         scope.launch {
-            val system = KarooSystemService(applicationContext)
-            system.connect { connected ->
-                if (!connected) return@connect
-                scope.launch {
-                    val controller = BuildController(system, configStore, repository, query)
-                    controller.runBuild()
-                    system.disconnect()
-                }
+            withKarooConnection(applicationContext) { system ->
+                BuildController(system, configStore, repository, query).runBuild()
             }
         }
     }

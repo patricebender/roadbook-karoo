@@ -10,6 +10,9 @@ import kotlin.math.sqrt
 
 data class LatLng(val lat: Double, val lng: Double)
 
+/** Meters per degree of latitude (constant); also the equatorial meters-per-degree of longitude. */
+const val METERS_PER_DEG_LAT = 111_320.0
+
 /** Decode a polyline directly into [LatLng] points. */
 fun decodeLatLng(encoded: String, precision: Int = 5): List<LatLng> =
     decodePolyline(encoded, precision).map { LatLng(it.first, it.second) }
@@ -43,8 +46,8 @@ fun distanceToRoute(
     cumulative: DoubleArray,
     p: LatLng,
 ): Pair<Double, Double> {
-    val mPerDegLat = 111_320.0
-    val mPerDegLng = 111_320.0 * cos(Math.toRadians(p.lat))
+    val mPerDegLat = METERS_PER_DEG_LAT
+    val mPerDegLng = METERS_PER_DEG_LAT * cos(Math.toRadians(p.lat))
     val px = p.lng * mPerDegLng
     val py = p.lat * mPerDegLat
 

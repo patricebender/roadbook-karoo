@@ -31,9 +31,8 @@ import io.roadbook.karoo.ui.FilterScreen
 import io.roadbook.karoo.ui.PoiDetailScreen
 import io.roadbook.karoo.ui.WaybookScreen
 import io.roadbook.karoo.ui.hoursFor
+import io.roadbook.karoo.util.withKarooConnection
 import kotlinx.coroutines.launch
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /** In-app screens. No nav framework — a small sealed state the host switches on. */
 private sealed interface Screen {
@@ -160,14 +159,9 @@ class MainActivity : ComponentActivity() {
      */
     private suspend fun fetchDescription(poi: Poi): String? {
         repository.cachedDescription(poi.id)?.let { return it }
-        val system = KarooSystemService(applicationContext)
-        val connected = suspendCoroutine { cont -> system.connect { cont.resume(it) } }
-        if (!connected) return null
-        return try {
+        return withKarooConnection(applicationContext) { system ->
             WikipediaClient(system).summaryFor(poi.tags["wikipedia"])
                 ?.also { repository.cacheDescription(poi.id, it) }
-        } finally {
-            system.disconnect()
         }
     }
 
@@ -179,10 +173,7 @@ class MainActivity : ComponentActivity() {
     private suspend fun fetchGoogleHours(poi: Poi): PlacesClient.Result? {
         // Serve a still-fresh cached fetch (performance cache) without a network call.
         repository.cachedHours(poi.id)?.let { return it }
-        val system = KarooSystemService(applicationContext)
-        val connected = suspendCoroutine { cont -> system.connect { cont.resume(it) } }
-        if (!connected) return null
-        return try {
+        return withKarooConnection(applicationContext) { system ->
             PlacesClient(system)
                 .hoursFor(
                     name = poi.name,
@@ -194,8 +185,6 @@ class MainActivity : ComponentActivity() {
                     repository.cachePlaceId(poi.id, it.placeId) // Place ID: persisted
                     repository.cacheHours(poi.id, it)           // hours: memory, short TTL
                 }
-        } finally {
-            system.disconnect()
         }
     }
 

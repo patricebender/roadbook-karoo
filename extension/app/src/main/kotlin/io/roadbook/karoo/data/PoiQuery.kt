@@ -1,6 +1,7 @@
 package io.roadbook.karoo.data
 
 import io.roadbook.karoo.util.LatLng
+import io.roadbook.karoo.util.METERS_PER_DEG_LAT
 import io.roadbook.karoo.util.cumulativeDistances
 import io.roadbook.karoo.util.distanceToRoute
 import io.roadbook.karoo.util.haversine
@@ -18,8 +19,6 @@ class PoiQuery(private val database: PoiDatabase) {
     private val json = Json { ignoreUnknownKeys = true }
 
     private companion object {
-        const val M_PER_DEG_LAT = 111_320.0
-
         // Adaptive density: the route is split into fixed-length segments; each
         // segment keeps at most CAP POIs (nearest to the route). Sparse segments
         // may reach beyond the base radius (up to EXTEND_FACTOR×) to surface
@@ -59,9 +58,9 @@ class PoiQuery(private val database: PoiDatabase) {
             minLat = minOf(minLat, p.lat); maxLat = maxOf(maxLat, p.lat)
             minLng = minOf(minLng, p.lng); maxLng = maxOf(maxLng, p.lng)
         }
-        val dLat = maxRadius / M_PER_DEG_LAT
+        val dLat = maxRadius / METERS_PER_DEG_LAT
         val midLat = (minLat + maxLat) / 2
-        val dLng = maxRadius / (M_PER_DEG_LAT * cos(Math.toRadians(midLat)))
+        val dLng = maxRadius / (METERS_PER_DEG_LAT * cos(Math.toRadians(midLat)))
 
         val candidates = candidatesInBox(
             minLat - dLat, maxLat + dLat, minLng - dLng, maxLng + dLng, categories,
@@ -109,8 +108,8 @@ class PoiQuery(private val database: PoiDatabase) {
     /** POIs within [radiusMeters] of a point (fallback when no route is loaded). */
     fun queryNearby(center: LatLng, radiusMeters: Int, categories: Set<Category>): List<Poi> {
         if (categories.isEmpty()) return emptyList()
-        val dLat = radiusMeters / M_PER_DEG_LAT
-        val dLng = radiusMeters / (M_PER_DEG_LAT * cos(Math.toRadians(center.lat)))
+        val dLat = radiusMeters / METERS_PER_DEG_LAT
+        val dLng = radiusMeters / (METERS_PER_DEG_LAT * cos(Math.toRadians(center.lat)))
         return candidatesInBox(
             center.lat - dLat, center.lat + dLat, center.lng - dLng, center.lng + dLng, categories,
         )

@@ -55,9 +55,6 @@ import io.roadbook.karoo.data.PlacesClient
 import io.roadbook.karoo.data.Poi
 import kotlinx.coroutines.launch
 
-// Neutral tint for the "hours exist but are seasonal/complex" badge.
-private val SeasonalGrey = Color(0xFF757575)
-
 /**
  * Place detail, laid out as a centered hero (icon + name + type) followed by grouped
  * cards: an at-a-glance card (open/closed + street address + phone), the weekday hours

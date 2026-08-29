@@ -9,18 +9,17 @@ import io.roadbook.karoo.data.ConfigStore
 import io.roadbook.karoo.data.PoiQuery
 import io.roadbook.karoo.data.RoadbookRepository
 import io.roadbook.karoo.util.LatLng
+import io.roadbook.karoo.util.awaitOnce
 import io.roadbook.karoo.util.cumulativeDistances
 import io.roadbook.karoo.util.decodeLatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 import java.util.UUID
-import kotlin.coroutines.resume
 
 /**
  * Orchestrates a roadbook build, shared by both triggers (in-app button and the
@@ -46,7 +45,7 @@ class BuildController(
         return try {
             // Resolve the route (nav state may not emit if unchanged; bound the wait).
             val nav = withTimeoutOrNull(NAV_READ_TIMEOUT_MS) {
-                awaitOnce<OnNavigationState>()
+                system.awaitOnce<OnNavigationState>()
             }?.state
 
             val pois = when (nav) {
@@ -61,7 +60,7 @@ class BuildController(
                 }
                 else -> {
                     val loc = withTimeoutOrNull(NAV_READ_TIMEOUT_MS) {
-                        awaitOnce<OnLocationChanged>()
+                        system.awaitOnce<OnLocationChanged>()
                     } ?: return fail("No route or location available")
                     Timber.d("build nearby: ${loc.lat},${loc.lng}")
                     repository.setRouteLength(0.0) // nearby: no route → strip hidden
@@ -90,17 +89,6 @@ class BuildController(
             fail(e.message ?: "Build failed")
         }
     }
-
-    /** Consume a single emission of a Karoo event, then unsubscribe. */
-    private suspend inline fun <reified T : io.hammerhead.karooext.models.KarooEvent> awaitOnce(): T? =
-        suspendCancellableCoroutine { cont ->
-            var consumerId: String? = null
-            consumerId = system.addConsumer<T> { event ->
-                consumerId?.let { system.removeConsumer(it) }
-                if (cont.isActive) cont.resume(event)
-            }
-            cont.invokeOnCancellation { consumerId?.let { system.removeConsumer(it) } }
-        }
 
     private fun succeed(count: Int, byCategory: Map<Category, Int>): BuildState {
         val state = BuildState.Success(count, byCategory, System.currentTimeMillis())
