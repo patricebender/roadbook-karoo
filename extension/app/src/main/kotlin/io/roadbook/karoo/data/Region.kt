@@ -20,7 +20,22 @@ data class Region(
     val label: String,
     /** Picker section: "Germany" (Complete + Bundesländer) or "Europe" (countries). */
     val group: String,
-)
+) {
+    companion object {
+        /** The region the bundled first-run seed installs as. */
+        const val SEED_REGION_ID = "germany"
+
+        /**
+         * Whether [installed] (the set of directly-installed region ids) covers [rowId].
+         * A region covers itself; installing "germany" (Complete) additionally covers every
+         * `germany-<bundesland>` row, since that download contains them all. Used by the
+         * picker to show ✓ on Bundesländer once Germany is installed.
+         */
+        fun covers(installed: Set<String>, rowId: String): Boolean =
+            rowId in installed ||
+                (SEED_REGION_ID in installed && rowId.startsWith("$SEED_REGION_ID-"))
+    }
+}
 
 /**
  * The live region manifest (a GitHub release asset). Lists every downloadable region

@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -55,9 +56,10 @@ sealed interface RegionDownloadState {
 fun RegionsScreen(
     regions: List<Region>,
     manifest: Map<String, RegionManifestEntry>,
-    installedRegionId: String?,
+    installedRegions: Set<String>,
     state: RegionDownloadState,
     onDownload: (Region) -> Unit,
+    onRemove: (Region) -> Unit,
     onBack: () -> Unit,
 ) {
     val busy = state is RegionDownloadState.Downloading ||
@@ -112,10 +114,14 @@ fun RegionsScreen(
                     RegionRow(
                         region = region,
                         entry = manifest[region.id],
-                        installed = region.id == installedRegionId,
+                        installed = Region.covers(installedRegions, region.id),
+                        // Only a directly-installed region can be removed as a unit —
+                        // Bundesländer covered only via "germany" aren't removable alone.
+                        removable = region.id in installedRegions,
                         state = state,
                         enabled = !busy && manifest.containsKey(region.id),
                         onDownload = { onDownload(region) },
+                        onRemove = { onRemove(region) },
                     )
                     HorizontalDivider()
                 }
@@ -129,9 +135,11 @@ private fun RegionRow(
     region: Region,
     entry: RegionManifestEntry?,
     installed: Boolean,
+    removable: Boolean,
     state: RegionDownloadState,
     enabled: Boolean,
     onDownload: () -> Unit,
+    onRemove: () -> Unit,
 ) {
     val downloadingThis = state is RegionDownloadState.Downloading && state.regionId == region.id
     val installingThis = state is RegionDownloadState.Installing && state.regionId == region.id
@@ -180,7 +188,14 @@ private fun RegionRow(
         when {
             downloadingThis || installingThis ->
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            installed -> Text("✓", style = MaterialTheme.typography.titleMedium)
+            installed -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("✓", style = MaterialTheme.typography.titleMedium)
+                if (removable) {
+                    IconButton(onClick = onRemove, enabled = enabled) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Remove ${region.label}")
+                    }
+                }
+            }
             else -> Button(onClick = onDownload, enabled = enabled) {
                 Text(if (failedThis) "Retry" else "Get")
             }

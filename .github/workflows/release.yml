@@ -47,6 +47,34 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Bundle the POI seed (full Germany) into the APK. It's the same gzipped,
+      # R*Tree-stripped file the region picker downloads, published on the regions
+      # release — pulled here rather than rebuilt from OSM. Its schemaVersion must equal
+      # the app's BUNDLED_DB_VERSION; a stale regions release (older schema) fails the
+      # build so we never ship an APK whose seed the app would reject.
+      - name: Fetch Germany seed asset
+        if: ${{ steps.rp.outputs.releases_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p seed
+          gh release download regions-latest --pattern 'manifest.json' --dir seed --clobber
+          SCHEMA="$(jq -r '.schemaVersion' seed/manifest.json)"
+          APP_VER="$(grep -oP 'BUNDLED_DB_VERSION\s*=\s*\K[0-9]+' \
+            extension/app/src/main/kotlin/io/roadbook/karoo/data/PoiDatabase.kt)"
+          echo "regions release schemaVersion=$SCHEMA, app BUNDLED_DB_VERSION=$APP_VER"
+          if [[ "$SCHEMA" != "$APP_VER" ]]; then
+            echo "::error::regions-latest is schema v$SCHEMA but the app expects v$APP_VER." \
+              "Re-run the 'Build region files' workflow (all) to publish v$APP_VER, then release." >&2
+            exit 1
+          fi
+          gh release download regions-latest \
+            --pattern "germany-v${SCHEMA}.sqlite.gz" --dir seed --clobber
+          cp "seed/germany-v${SCHEMA}.sqlite.gz" \
+            extension/app/src/main/assets/pois-germany.sqlite.gz
+          ls -la extension/app/src/main/assets/pois-germany.sqlite.gz
+
       - name: Build APK
         if: ${{ steps.rp.outputs.releases_created == 'true' }}
         working-directory: extension

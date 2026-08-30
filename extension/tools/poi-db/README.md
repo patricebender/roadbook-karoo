@@ -1,9 +1,17 @@
 # POI database builder
 
 Builds the on-device POI database bundled with the extension
-(`app/src/main/assets/pois-baden-wuerttemberg.sqlite`) from an OpenStreetMap extract.
-The app seeds from this asset on first run and re-seeds when its `PRAGMA user_version`
-increases.
+(`app/src/main/assets/pois-germany.sqlite.gz`) from OpenStreetMap extracts. The bundled
+seed is the full **Germany** region file — the same gzipped, R\*Tree-stripped artifact the
+picker downloads. The app gunzips it and rebuilds the R\*Tree on first run, and re-seeds
+when its `PRAGMA user_version` increases.
+
+Region installs are **additive**: every `poi` row carries a `region_id` (which download
+inserted it), so downloaded regions merge into the live DB (dedup by `osm_id`) instead of
+replacing it, and a region can be removed again. The seed's rows are stamped
+`region_id=germany`.
+
+Build the bundled seed with `npm run build:seed` (→ `assets/pois-germany.sqlite.gz`).
 
 ## Requirements
 
@@ -31,23 +39,15 @@ tags such as `opening_hours`/`website`).
 
 Intermediate files live in `work/` (gitignored scratch); safe to delete.
 
-### Multiple regions
+### The bundled seed (`build:seed`)
 
-The app seeds from a single asset, so covering more than one Bundesland means building
-each region and merging them into that one asset:
+`npm run build:seed` builds the full Germany region file (via `build-region-file.sh
+germany` — assemble all 16 Bundesländer, dedup boundary `osm_id`s, strip the R\*Tree,
+gzip) and copies it to `app/src/main/assets/pois-germany.sqlite.gz`. That's the whole
+seed pipeline; the app does the gunzip + R\*Tree rebuild on first run.
 
-```bash
-npm run build:poi-db:multi                       # default: Baden-Württemberg + Hessen
-REGIONS="europe/germany/baden-wuerttemberg europe/germany/hessen europe/germany/rheinland-pfalz" \
-  npm run build:poi-db:multi                     # widen coverage
-```
-
-`build-multi-region.sh` builds each region into `work/<slug>.sqlite`, then merges them
-into the bundled asset — re-keying ids/rtree rowids per region and dropping the
-cross-region duplicate `osm_id`s Geofabrik ships on shared boundaries (the device's
-unique index on `osm_id` would otherwise reject the seed). Plain `build:poi-db`
-overwrites the asset with a single region, so use the `:multi` variant to preserve
-multi-region coverage.
+`build-multi-region.sh` (`build:poi-db:multi`) is the older generic multi-region merge
+into a *raw* asset — no longer the seed path, kept for ad-hoc local DBs.
 
 ## Downloadable regions (on-demand, in-app)
 
@@ -91,6 +91,7 @@ apps re-seed and downloaded region files stay compatible:
 
 - `db.pragma("user_version = N")` in `load-into-sqlite.ts`
 - `BUNDLED_DB_VERSION = N` in `data/PoiDatabase.kt`
+- rebuild the bundled seed (`npm run build:seed`) so the shipped asset is version N
 - rebuild + re-upload the region files (their `manifest.json` `schemaVersion` must match
   `BUNDLED_DB_VERSION`, or the app refuses the download and asks the rider to update)
 

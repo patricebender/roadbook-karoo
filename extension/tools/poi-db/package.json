@@ -10,6 +10,7 @@
     "build:poi-db:multi": "bash build-multi-region.sh",
     "build:region": "bash build-region-file.sh",
     "build:regions": "bash build-all-regions.sh",
+    "build:seed": "bash build-seed.sh",
     "build:manifest": "tsx build-manifest.ts",
     "gen:regions-json": "tsx regions.ts app-json",
     "typecheck": "tsc -p tsconfig.json"
