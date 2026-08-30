@@ -16,6 +16,8 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=merge-lib.sh
+source "$HERE/merge-lib.sh"
 REGIONS="${REGIONS:-europe/germany/baden-wuerttemberg europe/germany/hessen}"
 # Same bundled asset build-poi-db.sh targets; the app seeds from this filename.
 OUT="${OUT_DB:-$(cd "$HERE/../.." && pwd)/app/src/main/assets/pois-baden-wuerttemberg.sqlite}"
@@ -34,40 +36,7 @@ for region in $REGIONS; do
 done
 
 # Merge into the bundled asset: first region is the base, the rest are appended.
-base="${built[0]}"
-echo "==> Merging into $OUT (base: $(basename "$base"))"
-cp "$base" "$OUT"
-version="$(sqlite3 "$OUT" 'PRAGMA user_version;')"
+echo "==> Merging into $OUT (base: $(basename "${built[0]}"))"
+merge_dbs "$OUT" "${built[@]}"
 
-for db in "${built[@]:1}"; do
-  offset="$(sqlite3 "$OUT" 'SELECT COALESCE(MAX(id),0) FROM poi;')"
-  echo "   + $(basename "$db") (id offset $offset)"
-  sqlite3 "$OUT" <<SQL
-ATTACH '$db' AS r;
-BEGIN;
-INSERT INTO poi (id, osm_id, lat, lng, type, category, name, tags)
-  SELECT id + $offset, osm_id, lat, lng, type, category, name, tags FROM r.poi;
-INSERT INTO poi_rtree (id, minLat, maxLat, minLng, maxLng)
-  SELECT id + $offset, minLat, maxLat, minLng, maxLng FROM r.poi_rtree;
-COMMIT;
-DETACH r;
-SQL
-done
-
-# Drop cross-region duplicate osm_ids (keep the lowest id), mirror into the rtree.
-echo "==> De-duplicating boundary osm_ids"
-sqlite3 "$OUT" <<'SQL'
-BEGIN;
-DELETE FROM poi_rtree WHERE id IN (
-  SELECT id FROM poi WHERE id NOT IN (SELECT MIN(id) FROM poi GROUP BY osm_id)
-);
-DELETE FROM poi WHERE id NOT IN (SELECT MIN(id) FROM poi GROUP BY osm_id);
-COMMIT;
-SQL
-
-# VACUUM clears user_version, so restore what the pipeline set on the base DB.
-sqlite3 "$OUT" "VACUUM; PRAGMA user_version=$version;"
-
-pois="$(sqlite3 "$OUT" 'SELECT COUNT(*) FROM poi;')"
-integrity="$(sqlite3 "$OUT" 'PRAGMA integrity_check;')"
-echo "==> Done: $pois POIs, user_version=$version, integrity=$integrity, $(du -h "$OUT" | cut -f1) at $OUT"
+echo "==> Done: $(du -h "$OUT" | cut -f1) at $OUT"

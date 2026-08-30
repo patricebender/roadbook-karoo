@@ -1,4 +1,6 @@
 node_modules/
 # OSM pipeline scratch (the ~230 MB extract + intermediate files).
 work/
+# Distributable region files + manifest — uploaded to GitHub Releases, not committed.
+dist/
 *.log

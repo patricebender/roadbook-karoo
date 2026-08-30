@@ -49,13 +49,46 @@ unique index on `osm_id` would otherwise reject the seed). Plain `build:poi-db`
 overwrites the asset with a single region, so use the `:multi` variant to preserve
 multi-region coverage.
 
+## Downloadable regions (on-demand, in-app)
+
+The bundled asset above is the offline-first seed. Riders can also download other
+regions in-app (Germany Complete + each Bundesland, plus whole countries). Those files
+are built here and uploaded to a GitHub Release; the app fetches them over the Karoo
+HTTP bridge and installs them, rebuilding the R\*Tree on-device.
+
+```bash
+npm run build:regions                             # all regions in regions.ts
+REGIONS_IDS="germany-bremen italy" npm run build:regions   # a subset
+```
+
+`build-all-regions.sh` does three things:
+
+1. **Regenerates `app/src/main/assets/regions.json`** (the picker's catalog) from
+   `regions.ts` — the single source of truth for region id/label/group. Commit this.
+2. **Builds each region file** via `build-region-file.sh <id>`: runs the same pipeline
+   (single extract, or a merge of all 16 Bundesländer for `germany`), then strips the
+   derivable R\*Tree + category index and `VACUUM`s (the app rebuilds them on install —
+   this is the size lever), and `gzip -9`s to `dist/<id>-v<schema>.sqlite.gz`.
+3. **Emits `dist/manifest.json`** (`build-manifest.ts`): per-region file, gzipped/raw
+   sizes, POI count, and sha256 (verified on-device after download).
+
+`dist/` is gitignored — it's release output, not committed. See `docs/releasing.md` for
+the upload step. The manifest's `baseUrl` is env-overridable
+(`REGIONS_BASE_URL=... npm run build:manifest`) so a release retag doesn't need a code
+change; it defaults to the `regions-latest` release.
+
+`regions.ts` is a tiny CLI too: `npx tsx regions.ts ids`, `... paths <id>`,
+`... app-json`.
+
 ## Bumping the DB version
 
-When the schema or tag allowlist changes, bump **both** in lockstep so installed apps
-re-seed:
+When the schema or tag allowlist changes, bump **all three** in lockstep so installed
+apps re-seed and downloaded region files stay compatible:
 
 - `db.pragma("user_version = N")` in `load-into-sqlite.ts`
 - `BUNDLED_DB_VERSION = N` in `data/PoiDatabase.kt`
+- rebuild + re-upload the region files (their `manifest.json` `schemaVersion` must match
+  `BUNDLED_DB_VERSION`, or the app refuses the download and asks the rider to update)
 
 ## Keep in sync
 
