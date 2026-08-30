@@ -9,9 +9,9 @@ import java.io.File
  * The on-device POI database. Uses requery's bundled SQLite (guarantees the
  * R*Tree module, which Android's built-in SQLite may omit).
  *
- * On first run the app DB is seeded by copying the bundled Baden-Württemberg asset.
- * It re-seeds whenever [BUNDLED_DB_VERSION] outranks the installed `PRAGMA user_version`,
- * so a schema/tags change ships a fresh copy. Coverage is single-region.
+ * On first run the app DB is seeded by copying the bundled POI asset (Baden-Württemberg
+ * + Hessen, merged by the data pipeline). It re-seeds whenever [BUNDLED_DB_VERSION]
+ * outranks the installed `PRAGMA user_version`, so a schema/tags change ships a fresh copy.
  */
 class PoiDatabase private constructor(private val dbFile: File) {
 
@@ -55,7 +55,7 @@ class PoiDatabase private constructor(private val dbFile: File) {
         // Version of the bundled asset. Bump in lockstep with `user_version` set by
         // the data pipeline whenever the schema/tags change, so existing installs
         // re-seed instead of running against a stale DB missing the new columns.
-        private const val BUNDLED_DB_VERSION = 4
+        private const val BUNDLED_DB_VERSION = 5
 
         @Volatile
         private var instance: PoiDatabase? = null
@@ -92,7 +92,7 @@ class PoiDatabase private constructor(private val dbFile: File) {
                 }
             }.getOrDefault(0)
 
-        /** Copy the bundled BW database into app storage on first run. */
+        /** Copy the bundled POI database into app storage on first run. */
         private fun seedFromAsset(context: Context, dest: File) {
             Timber.d("seeding POI DB from asset $SEED_ASSET")
             runCatching {

@@ -31,6 +31,24 @@ tags such as `opening_hours`/`website`).
 
 Intermediate files live in `work/` (gitignored scratch); safe to delete.
 
+### Multiple regions
+
+The app seeds from a single asset, so covering more than one Bundesland means building
+each region and merging them into that one asset:
+
+```bash
+npm run build:poi-db:multi                       # default: Baden-Württemberg + Hessen
+REGIONS="europe/germany/baden-wuerttemberg europe/germany/hessen europe/germany/rheinland-pfalz" \
+  npm run build:poi-db:multi                     # widen coverage
+```
+
+`build-multi-region.sh` builds each region into `work/<slug>.sqlite`, then merges them
+into the bundled asset — re-keying ids/rtree rowids per region and dropping the
+cross-region duplicate `osm_id`s Geofabrik ships on shared boundaries (the device's
+unique index on `osm_id` would otherwise reject the seed). Plain `build:poi-db`
+overwrites the asset with a single region, so use the `:multi` variant to preserve
+multi-region coverage.
+
 ## Bumping the DB version
 
 When the schema or tag allowlist changes, bump **both** in lockstep so installed apps
