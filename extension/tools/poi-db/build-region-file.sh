@@ -35,12 +35,20 @@ read -ra PATH_ARR <<< "$paths"
 echo ">> Region $REGION_ID -> ${#PATH_ARR[@]} extract(s): $paths"
 
 # Build each extract into its own DB (reusing the single-region pipeline), then merge.
+# The per-extract DB is cached by slug: when the all-regions run builds `germany` (all 16
+# Bundesländer) and then each `germany-<state>` individually, the second pass reuses the
+# DB built in the first instead of re-downloading + re-processing the same extract.
+# REBUILD=1 forces a fresh build; the pipeline's own FORCE_DOWNLOAD refreshes the extract.
 built=()
 for gf in "${PATH_ARR[@]}"; do
   slug="$(echo "$gf" | tr '/' '-')"
   db="$WORK/$slug.sqlite"
-  echo "==> Building $gf -> $db"
-  OSM_REGION="$gf" OUT_DB="$db" FORCE_DOWNLOAD="${FORCE_DOWNLOAD:-1}" "$HERE/build-poi-db.sh"
+  if [[ "${REBUILD:-0}" != "1" && -s "$db" ]]; then
+    echo "==> Reusing cached $db (REBUILD=1 to force)"
+  else
+    echo "==> Building $gf -> $db"
+    OSM_REGION="$gf" OUT_DB="$db" FORCE_DOWNLOAD="${FORCE_DOWNLOAD:-0}" "$HERE/build-poi-db.sh"
+  fi
   built+=("$db")
 done
 
@@ -58,12 +66,15 @@ if [[ -z "$SCHEMA" || "$SCHEMA" == "0" ]]; then
   exit 1
 fi
 
-# Strip the derivable R*Tree + category index; the app rebuilds both on install.
-# VACUUM reclaims the freed pages (the real size win) and clears user_version → restore.
+# Stamp every row with this region's id (provenance for additive install + removal on
+# device), then strip the derivable R*Tree + category index; the app rebuilds both on
+# install. VACUUM reclaims the freed pages (the real size win) and clears user_version →
+# restore.
 DISTDB="$WORK/$REGION_ID.dist.sqlite"
 cp "$ASSEMBLED" "$DISTDB"
-echo "==> Stripping R*Tree + index, VACUUM (schema v$SCHEMA)"
+echo "==> Stamping region_id=$REGION_ID, stripping R*Tree + index, VACUUM (schema v$SCHEMA)"
 sqlite3 "$DISTDB" <<SQL
+UPDATE poi SET region_id='$REGION_ID';
 DROP TABLE IF EXISTS poi_rtree;
 DROP INDEX IF EXISTS idx_poi_category;
 VACUUM;

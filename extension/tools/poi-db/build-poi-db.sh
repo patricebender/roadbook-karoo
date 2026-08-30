@@ -13,12 +13,19 @@ set -euo pipefail
 
 REGION="${OSM_REGION:-europe/germany/baden-wuerttemberg}"
 WORK="${WORK_DIR:-$(cd "$(dirname "$0")" && pwd)/work}"
-# Write straight to the bundled Android asset the app seeds from on first run.
-OUT="${OUT_DB:-$(cd "$(dirname "$0")/../.." && pwd)/app/src/main/assets/pois-baden-wuerttemberg.sqlite}"
+# Single-region build output. Callers override OUT_DB: build-region-file.sh routes it
+# into per-region work DBs (the seed + downloadable files are built from those, not from
+# this default). Defaults to scratch so a bare run doesn't write a dead asset.
+OUT="${OUT_DB:-$WORK/pois.sqlite}"
 
-PBF="$WORK/region.osm.pbf"
-FILTERED="$WORK/pois.osm.pbf"
-GEOJSON="$WORK/pois.geojsonseq"
+# Cache the extract + intermediates per-region (slug from the Geofabrik path) rather than
+# a shared region.osm.pbf. The germany build downloads all 16 Bundesland extracts; caching
+# by slug lets the subsequent per-Bundesland builds reuse them instead of re-fetching the
+# same ~2.5 GB (the "downloads each Bundesland twice" waste in the all-regions run).
+SLUG="$(echo "$REGION" | tr '/' '-')"
+PBF="$WORK/$SLUG.osm.pbf"
+FILTERED="$WORK/$SLUG.pois.osm.pbf"
+GEOJSON="$WORK/$SLUG.pois.geojsonseq"
 URL="https://download.geofabrik.de/${REGION}-latest.osm.pbf"
 
 mkdir -p "$WORK"

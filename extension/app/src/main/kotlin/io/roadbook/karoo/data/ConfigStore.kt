@@ -5,7 +5,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -44,19 +43,29 @@ class ConfigStore(private val context: Context) {
     }
 
     /**
-     * The `regionId` of the currently installed POI database, or null when it's still
-     * the bundled first-run seed (Baden-Württemberg + Hessen). Set after a successful
-     * region download so the picker can show which region is active.
+     * The set of installed region ids. Installs are additive, so this grows as the rider
+     * downloads regions and shrinks on removal. Empty means the DB is still the untouched
+     * bundled seed (Germany); the picker treats empty as `{germany}` so the seed shows as
+     * installed without a first-run write (see [Region.SEED_REGION_ID]).
      */
-    val installedRegionId: Flow<String?> = context.dataStore.data.map { it[REGION_KEY] }
+    val installedRegions: Flow<Set<String>> =
+        context.dataStore.data.map { it[REGIONS_KEY] ?: emptySet() }
 
-    suspend fun setInstalledRegion(regionId: String) {
-        context.dataStore.edit { it[REGION_KEY] = regionId }
+    suspend fun addInstalledRegion(regionId: String) {
+        context.dataStore.edit { prefs ->
+            prefs[REGIONS_KEY] = (prefs[REGIONS_KEY] ?: emptySet()) + regionId
+        }
+    }
+
+    suspend fun removeInstalledRegion(regionId: String) {
+        context.dataStore.edit { prefs ->
+            prefs[REGIONS_KEY] = (prefs[REGIONS_KEY] ?: emptySet()) - regionId
+        }
     }
 
     private companion object {
         val DETOUR_KEY = intPreferencesKey("detour_meters")
         val CATEGORIES_KEY = stringSetPreferencesKey("enabled_categories")
-        val REGION_KEY = stringPreferencesKey("installed_region")
+        val REGIONS_KEY = stringSetPreferencesKey("installed_regions")
     }
 }

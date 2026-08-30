@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Build the bundled POI asset from *multiple* OSM regions.
+# Build a merged raw POI SQLite from *multiple* OSM regions (ad-hoc / legacy).
 #
-# The app seeds from a single asset (PoiDatabase.SEED_ASSET), so to cover more than
-# one Bundesland we build each region into its own SQLite, then merge them into the
-# bundled asset here. Merge handles the two things a naive concat gets wrong:
+# NOT the seed path anymore: the app seeds from the gzipped germany region file
+# (build-seed.sh -> pois-germany.sqlite.gz). This is kept for building a raw, unstripped
+# multi-region DB locally. Each region is built into its own SQLite, then merged. Merge
+# handles the two things a naive concat gets wrong:
 #   1. id / poi_rtree rowid collisions — each per-region DB numbers from 1, so every
 #      region after the first is offset by the running max id.
 #   2. cross-region duplicate osm_ids — Geofabrik ships boundary features in both
@@ -19,9 +20,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=merge-lib.sh
 source "$HERE/merge-lib.sh"
 REGIONS="${REGIONS:-europe/germany/baden-wuerttemberg europe/germany/hessen}"
-# Same bundled asset build-poi-db.sh targets; the app seeds from this filename.
-OUT="${OUT_DB:-$(cd "$HERE/../.." && pwd)/app/src/main/assets/pois-baden-wuerttemberg.sqlite}"
 WORK="${WORK_DIR:-$HERE/work}"
+# Scratch output by default (this is no longer a bundled asset); override with OUT_DB.
+OUT="${OUT_DB:-$WORK/pois-multi.sqlite}"
 
 mkdir -p "$WORK"
 built=()

@@ -32,7 +32,7 @@ class RegionCatalogClient(private val system: KarooSystemService) {
     }
 
     sealed interface Result {
-        /** Region installed; [poiCount] rows now live. */
+        /** Region merged into the DB; [poiCount] is the newly-added rows (the coverage delta). */
         data class Installed(val poiCount: Int) : Result
         /** App is older/newer than the manifest — user must update the app. */
         data class SchemaMismatch(val manifestVersion: Int, val appVersion: Int) : Result
@@ -57,9 +57,10 @@ class RegionCatalogClient(private val system: KarooSystemService) {
     }
 
     /**
-     * Download [entry] from [manifest], verify it, and install it. [scratchDir] is a
-     * writable dir for the temp `.gz`/`.sqlite` (use `context.cacheDir`). [context] is
-     * needed for the install swap. [onProgress] is invoked per chunk.
+     * Download [entry] from [manifest], verify it, and merge it into the live DB. Installs
+     * are additive — the region's rows are appended (dedup by osm_id), not swapped in.
+     * [scratchDir] is a writable dir for the temp `.gz`/`.sqlite` (use `context.cacheDir`).
+     * [onProgress] is invoked per chunk.
      */
     suspend fun downloadAndInstall(
         context: android.content.Context,
@@ -101,9 +102,10 @@ class RegionCatalogClient(private val system: KarooSystemService) {
             return Result.Failed("decompression failed")
         }
 
-        // installFromFile consumes `sqlite` (moves or deletes it) and rebuilds the R*Tree.
-        // Persisting the installed regionId (ConfigStore.setInstalledRegion) is the
-        // caller's job — it owns the store, mirroring how the other clients are wired.
+        // installFromFile consumes `sqlite` (deletes it), merges its rows into the live DB
+        // and rebuilds the R*Tree. Recording the installed regionId
+        // (ConfigStore.addInstalledRegion) is the caller's job — it owns the store,
+        // mirroring how the other clients are wired.
         val count = PoiDatabase.installFromFile(context, sqlite, entry.id)
             ?: return Result.Failed("region file rejected on install")
         return Result.Installed(count)
@@ -122,27 +124,50 @@ class RegionCatalogClient(private val system: KarooSystemService) {
         dest: File,
         onProgress: (Progress) -> Unit,
     ): Boolean {
+        val startAll = System.currentTimeMillis()
+        var chunks = 0
         dest.outputStream().use { out ->
             var offset = 0L
             var total = expectedTotal
             while (offset < total) {
                 val end = minOf(offset + CHUNK_BYTES - 1, total - 1)
+                val t0 = System.currentTimeMillis()
                 val complete = system.httpRequest(
                     method = "GET",
                     url = url,
                     headers = mapOf("Range" to "bytes=$offset-$end"),
                 ) ?: return false
+                val elapsed = System.currentTimeMillis() - t0
                 val body = complete.body ?: return false
+                chunks++
+                Timber.d(
+                    "range chunk #$chunks status=${complete.statusCode} " +
+                        "req=bytes=$offset-$end got=${body.size}B in ${elapsed}ms",
+                )
 
                 when (complete.statusCode) {
                     206 -> {
                         // Partial content: refine total from Content-Range if present.
                         contentRangeTotal(complete.headers)?.let { total = it }
+                        // A body shorter than the requested window (that isn't the final
+                        // chunk) means the bridge truncated it — bail rather than loop or
+                        // write a corrupt file. Empty body would also spin forever.
+                        val requested = (end - offset + 1).toInt()
+                        if (body.isEmpty() || (body.size < requested && offset + body.size < total)) {
+                            Timber.e("short range chunk: got ${body.size}B, wanted $requested")
+                            return false
+                        }
                         out.write(body)
                         offset += body.size
                     }
                     200 -> {
-                        // Server ignored Range and sent the whole file in one shot.
+                        // Server ignored Range and sent the whole file in one shot. Only
+                        // trust this if it's actually the whole file; a capped/short 200 is
+                        // a truncation, not a complete download.
+                        if (body.size.toLong() < total) {
+                            Timber.e("200 without Range: ${body.size}B < $total; bridge truncation")
+                            return false
+                        }
                         out.write(body)
                         offset = body.size.toLong()
                         total = offset
@@ -155,6 +180,10 @@ class RegionCatalogClient(private val system: KarooSystemService) {
                 onProgress(Progress(done = offset, total = total))
             }
         }
+        Timber.d(
+            "download done: ${dest.length()}B in $chunks chunk(s), " +
+                "${System.currentTimeMillis() - startAll}ms total",
+        )
         return dest.length() > 0
     }
 
@@ -189,7 +218,15 @@ class RegionCatalogClient(private val system: KarooSystemService) {
         const val MANIFEST_URL =
             "https://github.com/patricebender/roadbook-karoo/releases/download/regions-latest/manifest.json"
 
-        /** Per-request Range chunk. Small enough to bound peak memory on the Karoo. */
-        private const val CHUNK_BYTES = 2L * 1024 * 1024
+        /**
+         * Per-request Range chunk. The Karoo HTTP bridge caps responses at ~100 KB
+         * (System Service enforced, even on WiFi); over that it drops the response with
+         * `RESPONSE_TOO_LARGE` and the request hangs. Each bridged request also carries a
+         * fixed ~2.4 s overhead (marshalling + a fresh CDN redirect per GET), independent
+         * of payload — so download time is request-count-bound, not bandwidth-bound. Pick
+         * the largest chunk that stays safely under the cap: 96 KB leaves ~4 KB headroom
+         * for response headers. A ~50 MB region is then ~530 sequential GETs.
+         */
+        private const val CHUNK_BYTES = 96L * 1024
     }
 }

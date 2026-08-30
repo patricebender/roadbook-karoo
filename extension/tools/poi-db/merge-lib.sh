@@ -31,8 +31,8 @@ merge_dbs() {
     sqlite3 "$out" <<SQL
 ATTACH '$db' AS r;
 BEGIN;
-INSERT INTO poi (id, osm_id, lat, lng, type, category, name, tags)
-  SELECT id + $offset, osm_id, lat, lng, type, category, name, tags FROM r.poi;
+INSERT INTO poi (id, osm_id, lat, lng, type, category, name, tags, region_id)
+  SELECT id + $offset, osm_id, lat, lng, type, category, name, tags, region_id FROM r.poi;
 INSERT INTO poi_rtree (id, minLat, maxLat, minLng, maxLng)
   SELECT id + $offset, minLat, maxLat, minLng, maxLng FROM r.poi_rtree;
 COMMIT;

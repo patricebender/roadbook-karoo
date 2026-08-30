@@ -39,7 +39,10 @@ import io.roadbook.karoo.ui.WaybookScreen
 import io.roadbook.karoo.ui.hoursFor
 import io.roadbook.karoo.util.withKarooConnection
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** In-app screens. No nav framework — a small sealed state the host switches on. */
 private sealed interface Screen {
@@ -124,8 +127,8 @@ class MainActivity : ComponentActivity() {
             )
 
             is Screen.Regions -> {
-                val installedRegion by configStore.installedRegionId
-                    .collectAsStateWithLifecycle(initialValue = null)
+                val installed by configStore.installedRegions
+                    .collectAsStateWithLifecycle(initialValue = emptySet())
                 // Fetch the manifest once on entry (unless a download is mid-flight).
                 LaunchedEffect(Unit) {
                     if (regionManifest.value.isEmpty() &&
@@ -137,9 +140,12 @@ class MainActivity : ComponentActivity() {
                 RegionsScreen(
                     regions = regionCatalog,
                     manifest = regionManifest.value,
-                    installedRegionId = installedRegion,
+                    // A fresh install has the Germany seed but an empty set (no download
+                    // written); show the seed as installed without a first-run write.
+                    installedRegions = installed.ifEmpty { setOf(Region.SEED_REGION_ID) },
                     state = downloadState.value,
                     onDownload = ::downloadRegion,
+                    onRemove = ::removeRegion,
                     onBack = { screen = Screen.Waybook },
                 )
             }
@@ -269,9 +275,13 @@ class MainActivity : ComponentActivity() {
             }
             downloadState.value = when (result) {
                 is RegionCatalogClient.Result.Installed -> {
-                    configStore.setInstalledRegion(region.id)
-                    // The DB singleton was swapped — repoint the query at the new one.
-                    query = PoiQuery(PoiDatabase.get(applicationContext))
+                    // Additive: record the region alongside any already installed. If this
+                    // is the first explicit download on a seed-only install, also record the
+                    // seed so removing this region doesn't hide the still-present Germany.
+                    if (configStore.installedRegions.first().isEmpty()) {
+                        configStore.addInstalledRegion(Region.SEED_REGION_ID)
+                    }
+                    configStore.addInstalledRegion(region.id)
                     RegionDownloadState.Done(region.id, result.poiCount)
                 }
                 is RegionCatalogClient.Result.SchemaMismatch ->
@@ -280,6 +290,18 @@ class MainActivity : ComponentActivity() {
                     RegionDownloadState.Failed(region.id, result.reason)
                 null -> RegionDownloadState.Failed(region.id, "No connection")
             }
+        }
+    }
+
+    /** Remove an installed region's POIs, then drop it from the installed set. */
+    private fun removeRegion(region: Region) {
+        downloadState.value = RegionDownloadState.Installing(region.id)
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                PoiDatabase.removeRegion(applicationContext, region.id)
+            }
+            configStore.removeInstalledRegion(region.id)
+            downloadState.value = RegionDownloadState.Idle
         }
     }
 
