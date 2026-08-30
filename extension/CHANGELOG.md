@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/patricebender/roadbook-karoo/compare/v0.5.0...v0.6.0) (2026-08-30)
+
+
+### Features
+
+* add ice cream POI category and Hessen coverage ([#11](https://github.com/patricebender/roadbook-karoo/issues/11)) ([085c7df](https://github.com/patricebender/roadbook-karoo/commit/085c7dfd72fe31f30902fe1229258b01ea7044f2))
+
 ## [0.5.0](https://github.com/patricebender/roadbook-karoo/compare/v0.4.0...v0.5.0) (2026-08-29)
 
 
