@@ -1,0 +1,110 @@
+name: Build region files
+
+# Builds the downloadable POI region files (per-Bundesland / per-country SQLite) and
+# publishes them + the manifest to the `regions-latest` GitHub Release, which the app's
+# RegionCatalogClient.MANIFEST_URL points at.
+#
+# Runs on the GitHub runner (fast bandwidth + osmium) rather than a dev laptop — a full
+# build downloads many GB of OSM extracts. Manually triggered so you choose the scope
+# and don't refetch everything on every push.
+on:
+  workflow_dispatch:
+    inputs:
+      regions:
+        description: >-
+          Space-separated region ids to build (see tools/poi-db/regions.ts ids),
+          or "all" for the full catalog.
+        type: string
+        default: "germany-bremen germany-hamburg germany-saarland switzerland"
+      tag:
+        description: Release tag to publish assets to.
+        type: string
+        default: regions-latest
+
+permissions: {}
+
+# One region build at a time — they all publish to the same release.
+concurrency:
+  group: build-regions
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # OSM extracts are large; give the full catalog room to download + process.
+    timeout-minutes: 240
+
+    permissions:
+      contents: write # (re)create the release + upload assets
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install osmium + sqlite3
+        # osmium: OSM filter/export. sqlite3 CLI: the merge/strip steps shell to it
+        # (preinstalled on ubuntu-latest, but declare it so the build can't silently
+        # depend on the image).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool sqlite3
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: extension/tools/poi-db/package-lock.json
+
+      - name: Install pipeline deps
+        working-directory: extension/tools/poi-db
+        run: npm ci
+
+      - name: Build region files + manifest
+        working-directory: extension/tools/poi-db
+        env:
+          # `all` → let build-all-regions.sh enumerate the catalog; otherwise the subset.
+          INPUT_REGIONS: ${{ github.event.inputs.regions }}
+          # Manifest baseUrl must match the release the assets land on.
+          REGIONS_BASE_URL: >-
+            https://github.com/${{ github.repository }}/releases/download/${{ github.event.inputs.tag }}/
+        run: |
+          set -euo pipefail
+          # "all" → empty REGIONS_IDS, which build-all-regions.sh expands to the full
+          # catalog; otherwise pass the subset straight through.
+          if [ "$INPUT_REGIONS" != "all" ]; then
+            export REGIONS_IDS="$INPUT_REGIONS"
+          fi
+          echo "Building: ${REGIONS_IDS:-<all>}"
+          npm run build:regions
+          echo "---- dist ----"
+          ls -lh dist/
+          echo "---- manifest ----"
+          cat dist/manifest.json
+
+      - name: Verify regions.json is committed and in sync
+        working-directory: extension/tools/poi-db
+        run: |
+          # build:regions regenerates the app catalog; it must already match what's
+          # committed, or the app ships a stale picker list. Fail loudly if it drifted.
+          if ! git diff --quiet -- ../../app/src/main/assets/regions.json; then
+            echo "::error::assets/regions.json is out of date. Run 'npm run gen:regions-json' and commit it." >&2
+            git --no-pager diff -- ../../app/src/main/assets/regions.json
+            exit 1
+          fi
+
+      - name: Publish to release
+        working-directory: extension/tools/poi-db
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          # Recreate the release so removed regions don't linger as stale assets. The
+          # tag is force-moved to the current commit.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" dist/* \
+            --title "POI regions" \
+            --notes "Downloadable POI region files for the in-app region picker. Built $(date -u +%Y-%m-%dT%H:%MZ) from Geofabrik extracts."
