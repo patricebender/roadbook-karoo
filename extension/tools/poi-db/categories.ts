@@ -36,6 +36,10 @@ export const CATEGORY_RULES: Record<Category, TagRule[]> = {
     // bicycle_parking removed: ~28k mostly-unnamed points, pure map clutter.
   ],
   fuel: [{ key: "amenity", value: "fuel", type: "GAS_STATION" }],
+  ice_cream: [
+    { key: "amenity", value: "ice_cream", type: "ICE_CREAM" },
+    { key: "shop", value: "ice_cream", type: "ICE_CREAM" },
+  ],
 };
 
 /** All rules for the enabled categories, flattened. */
