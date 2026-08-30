@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.7.0](https://github.com/patricebender/roadbook-karoo/compare/v0.6.0...v0.7.0) (2026-08-30)
+
+
+### Features
+
+* additive region installs with bundled Germany seed ([#16](https://github.com/patricebender/roadbook-karoo/issues/16)) ([27c7428](https://github.com/patricebender/roadbook-karoo/commit/27c7428c8c4a24fc982f8a43d1151c3ee632bde7))
+* make region release cumulative instead of last-run-wins ([#15](https://github.com/patricebender/roadbook-karoo/issues/15)) ([001bd7b](https://github.com/patricebender/roadbook-karoo/commit/001bd7b9786e2a699baea2c73828a32cdc5c87c4))
+* on-demand in-app region downloads for the POI database ([#13](https://github.com/patricebender/roadbook-karoo/issues/13)) ([62f7714](https://github.com/patricebender/roadbook-karoo/commit/62f77143a6fb23ec86f6b43a525ee1c26a3c8712))
+
 ## [0.6.0](https://github.com/patricebender/roadbook-karoo/compare/v0.5.0...v0.6.0) (2026-08-30)
 
 
