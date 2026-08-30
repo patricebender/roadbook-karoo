@@ -70,10 +70,14 @@ REGIONS_IDS="germany-bremen italy" npm run build:regions   # a subset
    derivable R\*Tree + category index and `VACUUM`s (the app rebuilds them on install —
    this is the size lever), and `gzip -9`s to `dist/<id>-v<schema>.sqlite.gz`.
 3. **Emits `dist/manifest.json`** (`build-manifest.ts`): per-region file, gzipped/raw
-   sizes, POI count, and sha256 (verified on-device after download).
+   sizes, POI count, and sha256 (verified on-device after download). **Cumulative** — if
+   a `dist/manifest.json` already exists it carries those regions forward and overlays the
+   ones built this run, so a subset build extends the manifest instead of replacing it
+   (prior entries are dropped only on a schema mismatch). Pre-seed `dist/` with the
+   published manifest to accumulate onto a release; the CI workflow does this automatically.
 
 `dist/` is gitignored — it's release output, not committed. See `docs/releasing.md` for
-the upload step. The manifest's `baseUrl` is env-overridable
+the upload step (and the cumulative caveat for local subset builds). The manifest's `baseUrl` is env-overridable
 (`REGIONS_BASE_URL=... npm run build:manifest`) so a release retag doesn't need a code
 change; it defaults to the `regions-latest` release.
 

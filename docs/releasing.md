@@ -41,28 +41,57 @@ APK release. These are large binaries rebuilt from OSM on demand, so they get th
 tag and are re-uploaded only when coverage or the DB schema changes — not every app
 release.
 
-1. Build the files + manifest (needs `osmium`; downloads several GB of OSM extracts, so
-   run it locally with a fast connection):
-   ```bash
-   cd extension/tools/poi-db && npm install
-   npm run build:regions            # → dist/*.sqlite.gz + dist/manifest.json
-   ```
-   Commit the refreshed `app/src/main/assets/regions.json` (the offline picker catalog).
-2. Create/replace a GitHub Release on a **stable tag** the app points at — the client
-   fetches `…/releases/download/regions-latest/manifest.json`
-   (`RegionCatalogClient.MANIFEST_URL`). Upload **all** of `dist/*` (the `.sqlite.gz`
-   files and `manifest.json`) as assets:
-   ```bash
-   gh release create regions-latest dist/* --title "POI regions" --notes "…" \
-     || gh release upload regions-latest dist/* --clobber
-   ```
-   If you version the tag instead (e.g. `regions-v2`), rebuild the manifest with
-   `REGIONS_BASE_URL=".../releases/download/regions-v2/" npm run build:manifest` so its
-   `baseUrl` matches, and update `MANIFEST_URL` in the app — the stable `regions-latest`
-   tag avoids that code change.
-3. The manifest's `schemaVersion` **must equal** the app's `BUNDLED_DB_VERSION`; a
-   mismatch makes the app refuse the download and prompt the rider to update. When you
-   bump the DB version, rebuild and re-upload the region files (see the poi-db README).
+### Preferred: the `Build region files` workflow
+
+Full coverage downloads many GB of OSM extracts, so build on the runner's bandwidth, not
+a laptop. Trigger **Actions → Build region files** (`.github/workflows/regions.yml`) with:
+
+- `regions` — a space-separated list of region ids (see `tools/poi-db/regions.ts ids`), or
+  `all` for the whole catalog. Default is a small smoke-test set.
+- `tag` — the release tag, default `regions-latest` (what the app points at).
+
+The workflow is **cumulative**: it downloads the release's current `manifest.json` first,
+so building a subset **adds/refreshes only those regions** and keeps the rest. New files
+are uploaded, rebuilt ones overwrite their asset, untouched ones stay — the release
+accumulates coverage across runs instead of last-run-wins. Build the whole catalog by
+running once with `all`, or grow it region by region.
+
+The manifest's `schemaVersion` **must equal** the app's `BUNDLED_DB_VERSION`; a mismatch
+makes the app refuse the download and prompt the rider to update. Bumping the DB version
+invalidates every published file: the merge discards prior entries whose schema differs,
+so **rebuild all regions** (`all`) after a bump rather than a subset (see the poi-db
+README).
+
+### Manual (local) build
+
+Possible but not the happy path — mind the cumulative caveat below.
+
+```bash
+cd extension/tools/poi-db && npm install
+npm run build:regions            # → dist/*.sqlite.gz + dist/manifest.json
+gh release create regions-latest dist/* --title "POI regions" --notes "…" \
+  || gh release upload regions-latest dist/* --clobber
+```
+
+Commit the refreshed `app/src/main/assets/regions.json` (the offline picker catalog).
+
+**Cumulative caveat:** `build-manifest.ts` merges onto a `dist/manifest.json` if one is
+present, so to add a subset without dropping the rest, pull the published manifest into
+`dist/` **before** building:
+
+```bash
+mkdir -p dist && gh release download regions-latest --pattern manifest.json --dir dist
+REGIONS_IDS="germany-bayern" npm run build:regions
+gh release upload regions-latest dist/* --clobber
+```
+
+Skip that pre-download and a subset build writes a manifest listing only what you built,
+so the app treats every other region as unavailable. Building `all` needs no pre-download.
+
+If you version the tag instead (e.g. `regions-v2`), rebuild the manifest with
+`REGIONS_BASE_URL=".../releases/download/regions-v2/" npm run build:manifest` so its
+`baseUrl` matches, and update `MANIFEST_URL` in the app — the stable `regions-latest` tag
+avoids that code change.
 
 Automated Geofabrik refresh (rebuilding region files on a schedule as OSM data ages) is
 a known follow-up, not wired yet.

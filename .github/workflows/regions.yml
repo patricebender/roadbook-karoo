@@ -60,6 +60,24 @@ jobs:
         working-directory: extension/tools/poi-db
         run: npm ci
 
+      - name: Fetch published manifest (for cumulative merge)
+        working-directory: extension/tools/poi-db
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          # Pull the already-published manifest into dist/ so build-manifest.ts carries its
+          # regions forward — a subset build then adds/refreshes only those ids instead of
+          # replacing the release. Absent (first run / fresh tag) → nothing to merge.
+          mkdir -p dist
+          if gh release download "$TAG" --pattern manifest.json --dir dist 2>/dev/null; then
+            echo "merging onto existing manifest:"
+            cat dist/manifest.json
+          else
+            echo "no published manifest on $TAG yet — building fresh"
+          fi
+
       - name: Build region files + manifest
         working-directory: extension/tools/poi-db
         env:
@@ -100,11 +118,13 @@ jobs:
           TAG: ${{ github.event.inputs.tag }}
         run: |
           set -euo pipefail
-          # Recreate the release so removed regions don't linger as stale assets. The
-          # tag is force-moved to the current commit.
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release delete "$TAG" --yes --cleanup-tag
+          # Cumulative: create the release once, then upload with --clobber. New region
+          # files are added, rebuilt ones overwrite their old asset, and regions not built
+          # this run keep their existing assets (the merged manifest still lists them). The
+          # release accumulates coverage across runs instead of last-run-wins.
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "POI regions" \
+              --notes "Downloadable POI region files for the in-app region picker, built from Geofabrik extracts."
           fi
-          gh release create "$TAG" dist/* \
-            --title "POI regions" \
-            --notes "Downloadable POI region files for the in-app region picker. Built $(date -u +%Y-%m-%dT%H:%MZ) from Geofabrik extracts."
+          gh release upload "$TAG" dist/* --clobber
