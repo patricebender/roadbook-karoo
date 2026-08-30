@@ -24,20 +24,28 @@ import io.roadbook.karoo.data.PlacesClient
 import io.roadbook.karoo.data.Poi
 import io.roadbook.karoo.data.PoiDatabase
 import io.roadbook.karoo.data.PoiQuery
+import io.roadbook.karoo.data.Region
+import io.roadbook.karoo.data.RegionCatalog
+import io.roadbook.karoo.data.RegionCatalogClient
+import io.roadbook.karoo.data.RegionManifestEntry
 import io.roadbook.karoo.data.RoadbookConfig
 import io.roadbook.karoo.data.RoadbookRepository
 import io.roadbook.karoo.data.WikipediaClient
 import io.roadbook.karoo.ui.FilterScreen
 import io.roadbook.karoo.ui.PoiDetailScreen
+import io.roadbook.karoo.ui.RegionDownloadState
+import io.roadbook.karoo.ui.RegionsScreen
 import io.roadbook.karoo.ui.WaybookScreen
 import io.roadbook.karoo.ui.hoursFor
 import io.roadbook.karoo.util.withKarooConnection
+import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 
 /** In-app screens. No nav framework — a small sealed state the host switches on. */
 private sealed interface Screen {
     data object Waybook : Screen
     data object Filter : Screen
+    data object Regions : Screen
     data class Detail(val poiId: String) : Screen
 }
 
@@ -46,6 +54,13 @@ class MainActivity : ComponentActivity() {
     private lateinit var configStore: ConfigStore
     private lateinit var repository: RoadbookRepository
     private lateinit var query: PoiQuery
+    private val regionCatalog: List<Region> by lazy { RegionCatalog.load(applicationContext) }
+
+    // Region download state, hoisted so it survives navigation between screens.
+    private val downloadState =
+        androidx.compose.runtime.mutableStateOf<RegionDownloadState>(RegionDownloadState.Idle)
+    private val regionManifest =
+        androidx.compose.runtime.mutableStateOf<Map<String, RegionManifestEntry>>(emptyMap())
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,8 +119,30 @@ class MainActivity : ComponentActivity() {
                     repository.clear()
                     repository.setBuildState(BuildState.Idle)
                 },
+                onOpenRegions = { screen = Screen.Regions },
                 onBack = { screen = Screen.Waybook },
             )
+
+            is Screen.Regions -> {
+                val installedRegion by configStore.installedRegionId
+                    .collectAsStateWithLifecycle(initialValue = null)
+                // Fetch the manifest once on entry (unless a download is mid-flight).
+                LaunchedEffect(Unit) {
+                    if (regionManifest.value.isEmpty() &&
+                        downloadState.value !is RegionDownloadState.Downloading
+                    ) {
+                        loadManifest()
+                    }
+                }
+                RegionsScreen(
+                    regions = regionCatalog,
+                    manifest = regionManifest.value,
+                    installedRegionId = installedRegion,
+                    state = downloadState.value,
+                    onDownload = ::downloadRegion,
+                    onBack = { screen = Screen.Waybook },
+                )
+            }
 
             is Screen.Detail -> {
                 val poi = pois.firstOrNull { it.id == s.poiId }
@@ -185,6 +222,64 @@ class MainActivity : ComponentActivity() {
                     repository.cachePlaceId(poi.id, it.placeId) // Place ID: persisted
                     repository.cacheHours(poi.id, it)           // hours: memory, short TTL
                 }
+        }
+    }
+
+    /** Fetch the region manifest for download sizes; updates [regionManifest]/[downloadState]. */
+    private fun loadManifest() {
+        downloadState.value = RegionDownloadState.LoadingManifest
+        lifecycleScope.launch {
+            val manifest = withKarooConnection(applicationContext) { system ->
+                RegionCatalogClient(system).fetchManifest()
+            }
+            if (manifest == null) {
+                downloadState.value = RegionDownloadState.ManifestFailed
+            } else {
+                regionManifest.value = manifest.regions.associateBy { it.id }
+                downloadState.value = RegionDownloadState.Idle
+                // Stash the full manifest (baseUrl) for the download step.
+                lastManifest = manifest
+            }
+        }
+    }
+
+    private var lastManifest: io.roadbook.karoo.data.RegionManifest? = null
+
+    /** Download + install [region], driving [downloadState] through progress → done/failed. */
+    private fun downloadRegion(region: Region) {
+        val manifest = lastManifest ?: return
+        val entry = manifest.regions.firstOrNull { it.id == region.id } ?: return
+        downloadState.value = RegionDownloadState.Downloading(region.id, 0f)
+        lifecycleScope.launch {
+            val result = withKarooConnection(applicationContext) { system ->
+                RegionCatalogClient(system).downloadAndInstall(
+                    context = applicationContext,
+                    manifest = manifest,
+                    entry = entry,
+                    scratchDir = cacheDir,
+                    onProgress = { p ->
+                        // Full progress covers the download; install is the short tail.
+                        downloadState.value = if (p.done >= p.total && p.total > 0) {
+                            RegionDownloadState.Installing(region.id)
+                        } else {
+                            RegionDownloadState.Downloading(region.id, p.fraction)
+                        }
+                    },
+                )
+            }
+            downloadState.value = when (result) {
+                is RegionCatalogClient.Result.Installed -> {
+                    configStore.setInstalledRegion(region.id)
+                    // The DB singleton was swapped — repoint the query at the new one.
+                    query = PoiQuery(PoiDatabase.get(applicationContext))
+                    RegionDownloadState.Done(region.id, result.poiCount)
+                }
+                is RegionCatalogClient.Result.SchemaMismatch ->
+                    RegionDownloadState.Failed(region.id, "Update the app to download regions")
+                is RegionCatalogClient.Result.Failed ->
+                    RegionDownloadState.Failed(region.id, result.reason)
+                null -> RegionDownloadState.Failed(region.id, "No connection")
+            }
         }
     }
 

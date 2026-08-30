@@ -47,6 +47,7 @@ fun FilterScreen(
     onCategoryToggle: (Category, Boolean) -> Unit,
     onBuild: () -> Unit,
     onClear: () -> Unit,
+    onOpenRegions: () -> Unit,
     onBack: () -> Unit,
 ) {
     val building = buildState is BuildState.Building
@@ -128,8 +129,17 @@ fun FilterScreen(
                 }
             }
 
+            Spacer(Modifier.height(24.dp))
+            OutlinedButton(
+                onClick = onOpenRegions,
+                enabled = !building,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Download regions")
+            }
+
             if (hasPins) {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = onClear,
                     enabled = !building,
