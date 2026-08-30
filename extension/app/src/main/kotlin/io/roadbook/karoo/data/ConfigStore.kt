@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -42,8 +43,20 @@ class ConfigStore(private val context: Context) {
         }
     }
 
+    /**
+     * The `regionId` of the currently installed POI database, or null when it's still
+     * the bundled first-run seed (Baden-Württemberg + Hessen). Set after a successful
+     * region download so the picker can show which region is active.
+     */
+    val installedRegionId: Flow<String?> = context.dataStore.data.map { it[REGION_KEY] }
+
+    suspend fun setInstalledRegion(regionId: String) {
+        context.dataStore.edit { it[REGION_KEY] = regionId }
+    }
+
     private companion object {
         val DETOUR_KEY = intPreferencesKey("detour_meters")
         val CATEGORIES_KEY = stringSetPreferencesKey("enabled_categories")
+        val REGION_KEY = stringPreferencesKey("installed_region")
     }
 }

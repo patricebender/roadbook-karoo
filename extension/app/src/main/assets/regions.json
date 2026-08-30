@@ -1,0 +1,132 @@
+[
+  {
+    "id": "germany",
+    "label": "Germany (Complete)",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-baden-wuerttemberg",
+    "label": "Baden-Württemberg",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-bayern",
+    "label": "Bayern",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-berlin",
+    "label": "Berlin",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-brandenburg",
+    "label": "Brandenburg",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-bremen",
+    "label": "Bremen",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-hamburg",
+    "label": "Hamburg",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-hessen",
+    "label": "Hessen",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-mecklenburg-vorpommern",
+    "label": "Mecklenburg-Vorpommern",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-niedersachsen",
+    "label": "Niedersachsen",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-nordrhein-westfalen",
+    "label": "Nordrhein-Westfalen",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-rheinland-pfalz",
+    "label": "Rheinland-Pfalz",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-saarland",
+    "label": "Saarland",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-sachsen",
+    "label": "Sachsen",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-sachsen-anhalt",
+    "label": "Sachsen-Anhalt",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-schleswig-holstein",
+    "label": "Schleswig-Holstein",
+    "group": "Germany"
+  },
+  {
+    "id": "germany-thueringen",
+    "label": "Thüringen",
+    "group": "Germany"
+  },
+  {
+    "id": "italy",
+    "label": "Italy",
+    "group": "Europe"
+  },
+  {
+    "id": "switzerland",
+    "label": "Switzerland",
+    "group": "Europe"
+  },
+  {
+    "id": "austria",
+    "label": "Austria",
+    "group": "Europe"
+  },
+  {
+    "id": "france",
+    "label": "France",
+    "group": "Europe"
+  },
+  {
+    "id": "netherlands",
+    "label": "Netherlands",
+    "group": "Europe"
+  },
+  {
+    "id": "belgium",
+    "label": "Belgium",
+    "group": "Europe"
+  },
+  {
+    "id": "denmark",
+    "label": "Denmark",
+    "group": "Europe"
+  },
+  {
+    "id": "norway",
+    "label": "Norway",
+    "group": "Europe"
+  },
+  {
+    "id": "sweden",
+    "label": "Sweden",
+    "group": "Europe"
+  }
+]

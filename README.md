@@ -45,7 +45,9 @@ POIs — no server, fully offline. Results render as typed map pins and in the W
 POI data comes from [OpenStreetMap](https://www.openstreetmap.org/). The bundled database is
 generated offline by **`extension/tools/poi-db/`** (downloads a regional extract, filters to
 our POI tags, loads a spatial SQLite) and baked into the app as an asset the extension seeds
-on first run. Coverage currently ships Baden-Württemberg.
+on first run. The bundled seed ships Baden-Württemberg + Hessen; riders can download other
+regions in-app (Germany Complete or a single Bundesland, plus other countries) from the
+region picker — the app fetches a compact per-region file and installs it on-device.
 
 See [FOUNDATION.md](FOUNDATION.md) for the full architecture and design.
 
