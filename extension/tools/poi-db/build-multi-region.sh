@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Build a merged raw POI SQLite from *multiple* OSM regions (ad-hoc / legacy).
 #
-# NOT the seed path anymore: the app seeds from the gzipped germany region file
-# (build-seed.sh -> pois-germany.sqlite.gz). This is kept for building a raw, unstripped
+# NOT the seed path anymore: the app seeds from the germany region file
+# (build-seed.sh -> pois-germany.sqlite). This is kept for building a raw, unstripped
 # multi-region DB locally. Each region is built into its own SQLite, then merged. Merge
 # handles the two things a naive concat gets wrong:
 #   1. id / poi_rtree rowid collisions — each per-region DB numbers from 1, so every

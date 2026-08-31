@@ -4,7 +4,6 @@ import android.content.Context
 import io.requery.android.database.sqlite.SQLiteDatabase
 import timber.log.Timber
 import java.io.File
-import java.util.zip.GZIPInputStream
 
 /**
  * The on-device POI database. Uses requery's bundled SQLite (guarantees the
@@ -39,7 +38,11 @@ class PoiDatabase private constructor(private val dbFile: File) {
 
     companion object {
         private const val DB_NAME = "pois.sqlite"
-        private const val SEED_ASSET = "pois-germany.sqlite.gz"
+        // The bundled seed. Stored uncompressed: AGP's asset merger auto-inflates any
+        // *.gz asset and strips the suffix, so a gzipped seed would (a) end up under a
+        // different name than we open here and (b) save nothing — the APK zip DEFLATEs
+        // the entry regardless. Ship the raw .sqlite and let the APK compress it.
+        private const val SEED_ASSET = "pois-germany.sqlite"
 
         /** The region id the bundled seed installs as (see [Region.SEED_REGION_ID]). */
         private const val SEED_REGION_ID = Region.SEED_REGION_ID
@@ -239,9 +242,9 @@ class PoiDatabase private constructor(private val dbFile: File) {
 
         /**
          * Seed the (freshly created, empty) live DB from the bundled Germany asset. The
-         * asset is gzipped and R*Tree-stripped, so it's gunzipped to a temp file and merged
-         * through the same path as a download — rows carry `region_id = germany`. Stamps
-         * the DB version so re-seeds are gated by [installedVersion].
+         * asset is an R*Tree-stripped region file (rows stamped `region_id = germany`); it's
+         * copied to a temp file and merged through the same path as a download. Stamps the
+         * DB version so re-seeds are gated by [installedVersion].
          */
         private fun seedFromAsset(context: Context, live: SQLiteDatabase) {
             Timber.d("seeding POI DB from asset $SEED_ASSET")
@@ -249,9 +252,7 @@ class PoiDatabase private constructor(private val dbFile: File) {
             val tmp = File(context.cacheDir, "seed-$SEED_REGION_ID.sqlite")
             runCatching {
                 context.assets.open(SEED_ASSET).use { input ->
-                    GZIPInputStream(input).use { gz ->
-                        tmp.outputStream().use { out -> gz.copyTo(out) }
-                    }
+                    tmp.outputStream().use { out -> input.copyTo(out) }
                 }
                 val inserted = mergeInto(context, tmp)
                 Timber.d("seeded $inserted POIs ($SEED_REGION_ID)")

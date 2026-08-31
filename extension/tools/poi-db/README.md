@@ -1,17 +1,17 @@
 # POI database builder
 
 Builds the on-device POI database bundled with the extension
-(`app/src/main/assets/pois-germany.sqlite.gz`) from OpenStreetMap extracts. The bundled
-seed is the full **Germany** region file — the same gzipped, R\*Tree-stripped artifact the
-picker downloads. The app gunzips it and rebuilds the R\*Tree on first run, and re-seeds
-when its `PRAGMA user_version` increases.
+(`app/src/main/assets/pois-germany.sqlite`) from OpenStreetMap extracts. The bundled
+seed is the full **Germany** region file — the same R\*Tree-stripped artifact the picker
+downloads (the picker fetches it gzipped; the seed is stored uncompressed, see below). The
+app rebuilds the R\*Tree on first run, and re-seeds when its `PRAGMA user_version` increases.
 
 Region installs are **additive**: every `poi` row carries a `region_id` (which download
 inserted it), so downloaded regions merge into the live DB (dedup by `osm_id`) instead of
 replacing it, and a region can be removed again. The seed's rows are stamped
 `region_id=germany`.
 
-Build the bundled seed with `npm run build:seed` (→ `assets/pois-germany.sqlite.gz`).
+Build the bundled seed with `npm run build:seed` (→ `assets/pois-germany.sqlite`).
 
 ## Requirements
 
@@ -42,9 +42,11 @@ Intermediate files live in `work/` (gitignored scratch); safe to delete.
 ### The bundled seed (`build:seed`)
 
 `npm run build:seed` builds the full Germany region file (via `build-region-file.sh
-germany` — assemble all 16 Bundesländer, dedup boundary `osm_id`s, strip the R\*Tree,
-gzip) and copies it to `app/src/main/assets/pois-germany.sqlite.gz`. That's the whole
-seed pipeline; the app does the gunzip + R\*Tree rebuild on first run.
+germany` — assemble all 16 Bundesländer, dedup boundary `osm_id`s, strip the R\*Tree) and
+gunzips it into `app/src/main/assets/pois-germany.sqlite`. That's the whole seed pipeline;
+the app rebuilds the R\*Tree on first run. It's stored **uncompressed**: AGP's asset merger
+auto-inflates + renames any `*.gz` asset, and the APK zip DEFLATEs the entry anyway, so
+gzip would only break the asset name the app opens.
 
 `build-multi-region.sh` (`build:poi-db:multi`) is the older generic multi-region merge
 into a *raw* asset — no longer the seed path, kept for ad-hoc local DBs.

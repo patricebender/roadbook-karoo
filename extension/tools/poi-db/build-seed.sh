@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Build the bundled first-run seed asset: the full Germany region file, dropped into the
-# app's assets as a gzip. The app gunzips it and rebuilds the R*Tree on first run
-# (PoiDatabase.seedFromAsset), so the shipped asset is the same compact, R*Tree-stripped
-# file the region picker downloads — no separate build path.
+# app's assets. The app copies it to a temp file and rebuilds the R*Tree on first run
+# (PoiDatabase.seedFromAsset), so the shipped asset is the same R*Tree-stripped file the
+# region picker downloads — no separate build path.
 #
 #   ./build-seed.sh
 #
 # Reuses build-region-file.sh germany (assemble 16 Bundesländer → strip → gzip), then
-# copies dist/germany-v<schema>.sqlite.gz to app/src/main/assets/pois-germany.sqlite.gz.
+# gunzips dist/germany-v<schema>.sqlite.gz into app/src/main/assets/pois-germany.sqlite.
+# Stored uncompressed because AGP's asset merger auto-inflates + renames any *.gz asset
+# (and the APK zip DEFLATEs the entry regardless, so gzip saves nothing).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -25,6 +27,6 @@ if [[ -z "$SRC" || ! -f "$SRC" ]]; then
   exit 1
 fi
 
-DEST="$APP_ASSETS/pois-germany.sqlite.gz"
-cp "$SRC" "$DEST"
+DEST="$APP_ASSETS/pois-germany.sqlite"
+gunzip -c "$SRC" > "$DEST"
 echo "==> Seed asset: $DEST ($(wc -c < "$DEST" | tr -d ' ') bytes) from $(basename "$SRC")"
