@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Wc
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import io.roadbook.karoo.data.Category
+import io.roadbook.karoo.data.Poi
 
 /**
  * The shared visual language for a POI — one color + icon + human label per amenity
@@ -50,3 +51,11 @@ private val FALLBACK = CategoryStyle(Color(0xFF757575), Icons.Filled.Place, "Pla
 
 /** Style + label for a POI, resolved from its `type`. */
 fun styleForType(type: String): CategoryStyle = STYLES[type] ?: FALLBACK
+
+/**
+ * Human label for a POI row/detail. Water sources all share the REST_STOP type (one
+ * teal-drop pin), so their distinct label comes from the pipeline's `water_subtype`
+ * tag ([waterSubtypeLabel]); everything else falls back to the type label.
+ */
+fun labelForPoi(poi: Poi): String =
+    poi.tags["water_subtype"]?.let(::waterSubtypeLabel) ?: styleForType(poi.type).label

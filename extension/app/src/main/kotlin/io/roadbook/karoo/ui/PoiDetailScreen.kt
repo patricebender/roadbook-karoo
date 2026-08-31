@@ -25,6 +25,9 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.TravelExplore
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -108,7 +111,7 @@ fun PoiDetailScreen(
                 textAlign = TextAlign.Center,
             )
             Text(
-                style.label,
+                labelForPoi(poi),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -150,6 +153,16 @@ fun PoiDetailScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            // Drinking water: for water POIs only, an at-a-glance potability card. The
+            // subtype/potability come from the pipeline's synthetic tags.
+            poi.tags["water_subtype"]?.let { subtype ->
+                DrinkingWaterSection(
+                    subtype = subtype,
+                    potability = poi.tags["drinking_water"] ?: "unknown",
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+
             // Opening hours: the "opens…"/24-7 line, the weekday table, or the on-demand
             // Google lookup when OSM has none.
             OpeningHoursBlock(
@@ -188,6 +201,58 @@ fun PoiDetailScreen(
             )
 
             Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+/**
+ * The Drinking water block: a "Drinking water" section label over a card that states
+ * potability at a glance — a color-coded pill (green yes / red no / grey unknown) with a
+ * matching glyph. Graveyards are a heuristic source (the tap is never mapped), so they're
+ * always "unknown" with an honest sub-line. Shown only for water POIs.
+ */
+@Composable
+private fun DrinkingWaterSection(subtype: String, potability: String) {
+    data class State(val pill: String, val color: Color, val icon: ImageVector, val note: String?)
+
+    val state = when (potability) {
+        "yes" -> State("Drinking water", OpenGreen, Icons.Filled.WaterDrop, "Safe to refill here.")
+        "no" -> State(
+            "Not drinking water", ClosedRed, Icons.Filled.DoNotDisturbOn,
+            "Marked as non-potable — don't drink.",
+        )
+        else -> State(
+            "Potability unknown", SeasonalGrey, Icons.AutoMirrored.Filled.HelpOutline,
+            if (subtype == "graveyard") {
+                "Cemeteries almost always have a tap, but it isn't mapped — not confirmed."
+            } else {
+                "Not tagged as potable — treat before drinking if unsure."
+            },
+        )
+    }
+
+    SectionLabel("Drinking water")
+    Spacer(Modifier.height(6.dp))
+    InfoCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                state.icon,
+                contentDescription = null,
+                tint = state.color,
+                modifier = Modifier.size(28.dp),
+            )
+            Spacer(Modifier.size(12.dp))
+            Column {
+                Pill(state.pill, state.color, Color.White)
+                state.note?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

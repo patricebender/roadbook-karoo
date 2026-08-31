@@ -52,6 +52,12 @@ osmium tags-filter --overwrite -o "$FILTERED" "$PBF" \
   nwr/shop=convenience \
   nwr/shop=supermarket \
   nwr/amenity=drinking_water \
+  nwr/amenity=fountain \
+  nwr/natural=spring \
+  nwr/man_made=water_well \
+  nwr/man_made=water_tap \
+  nwr/amenity=grave_yard \
+  nwr/landuse=cemetery \
   nwr/amenity=toilets \
   nwr/shop=bicycle \
   nwr/amenity=bicycle_parking \
