@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/patricebender/roadbook-karoo/compare/v0.7.1...v0.8.0) (2026-08-31)
+
+
+### Features
+
+* add Upcoming POIs data field ([#20](https://github.com/patricebender/roadbook-karoo/issues/20)) ([608265f](https://github.com/patricebender/roadbook-karoo/commit/608265fc20de26f63131d99c11a00fe6f55a84c8))
+
 ## [0.7.1](https://github.com/patricebender/roadbook-karoo/compare/v0.7.0...v0.7.1) (2026-08-31)
 
 
