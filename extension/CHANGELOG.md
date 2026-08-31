@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/patricebender/roadbook-karoo/compare/v0.7.0...v0.7.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* bundled Germany seed produced no POIs ([#17](https://github.com/patricebender/roadbook-karoo/issues/17)) ([68f668c](https://github.com/patricebender/roadbook-karoo/commit/68f668c6db4aad853480050060ff03227e8df4a3))
+
 ## [0.7.0](https://github.com/patricebender/roadbook-karoo/compare/v0.6.0...v0.7.0) (2026-08-30)
 
 
