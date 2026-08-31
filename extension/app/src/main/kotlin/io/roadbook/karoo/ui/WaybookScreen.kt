@@ -226,7 +226,7 @@ private fun PoiRow(
                 overflow = TextOverflow.Ellipsis,
             )
             // Line 2: type + status badge. Line 3 (when closed): "opens Mon 08:00".
-            TypeAndStatusLine(hours = hours, typeLabel = style.label)
+            TypeAndStatusLine(hours = hours, typeLabel = labelForPoi(poi))
             // Detour (only meaningful along a route).
             if (hasRoute && poi.detourMeters > 0) {
                 Text(

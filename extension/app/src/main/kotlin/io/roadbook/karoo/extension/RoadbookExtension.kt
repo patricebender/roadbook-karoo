@@ -145,6 +145,7 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
         "BIKE_SHOP" -> Symbol.POI.Types.BIKE_SHOP
         "GAS_STATION" -> Symbol.POI.Types.GAS_STATION
         "ICE_CREAM" -> Symbol.POI.Types.FOOD       // no ice-cream pin in karoo-ext → food icon
+        "LODGING" -> Symbol.POI.Types.LODGING
         else -> Symbol.POI.Types.GENERIC
     }
 

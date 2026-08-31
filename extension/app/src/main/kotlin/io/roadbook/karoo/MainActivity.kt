@@ -321,7 +321,7 @@ class MainActivity : ComponentActivity() {
         // Categories where opening hours matter enough to spend a Google lookup.
         val GOOGLE_HOURS_CATEGORIES = setOf(
             Category.SUPERMARKETS, Category.CAFE_BAR, Category.RESTAURANTS, Category.FUEL,
-            Category.ICE_CREAM,
+            Category.ICE_CREAM, Category.HOTELS,
         )
     }
 }

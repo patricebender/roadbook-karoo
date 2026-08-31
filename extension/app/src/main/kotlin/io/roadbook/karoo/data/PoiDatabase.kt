@@ -54,7 +54,7 @@ class PoiDatabase private constructor(private val dbFile: File) {
         // Also the schema contract for downloaded region files: the manifest's
         // schemaVersion and each file's `PRAGMA user_version` must equal this, else the
         // file was built for a different app version and [installFromFile] rejects it.
-        const val BUNDLED_DB_VERSION = 6
+        const val BUNDLED_DB_VERSION = 7
 
         @Volatile
         private var instance: PoiDatabase? = null

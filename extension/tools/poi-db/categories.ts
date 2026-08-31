@@ -25,8 +25,18 @@ export const CATEGORY_RULES: Record<Category, TagRule[]> = {
     { key: "amenity", value: "bar", type: "BAR" },
     { key: "amenity", value: "pub", type: "BAR" },
   ],
+  // All water sources share the REST_STOP pin (karoo-ext has no fountain/spring
+  // symbol); load-into-sqlite.ts derives a `water_subtype` tag for the distinct
+  // list/detail label. Cemeteries carry no water tag — they're a heuristic source
+  // (a tap is nearly always present) surfaced as a "probable" refill.
   water: [
     { key: "amenity", value: "drinking_water", type: "REST_STOP" },
+    { key: "amenity", value: "fountain", type: "REST_STOP" },
+    { key: "natural", value: "spring", type: "REST_STOP" },
+    { key: "man_made", value: "water_well", type: "REST_STOP" },
+    { key: "man_made", value: "water_tap", type: "REST_STOP" },
+    { key: "amenity", value: "grave_yard", type: "REST_STOP" },
+    { key: "landuse", value: "cemetery", type: "REST_STOP" },
   ],
   toilet: [
     { key: "amenity", value: "toilets", type: "RESTROOM" },
@@ -39,6 +49,12 @@ export const CATEGORY_RULES: Record<Category, TagRule[]> = {
   ice_cream: [
     { key: "amenity", value: "ice_cream", type: "ICE_CREAM" },
     { key: "shop", value: "ice_cream", type: "ICE_CREAM" },
+  ],
+  hotels: [
+    { key: "tourism", value: "hotel", type: "LODGING" },
+    { key: "tourism", value: "guest_house", type: "LODGING" },
+    { key: "tourism", value: "hostel", type: "LODGING" },
+    { key: "tourism", value: "motel", type: "LODGING" },
   ],
 };
 
