@@ -3,4 +3,6 @@
     <string name="app_name">Roadbook</string>
     <string name="extension_name">Roadbook</string>
     <string name="action_build">Build Roadbook</string>
+    <string name="field_upcoming_pois">Upcoming POIs</string>
+    <string name="field_upcoming_pois_desc">Next POIs ahead on your route, per category</string>
 </resources>

@@ -36,6 +36,8 @@ import io.roadbook.karoo.ui.PoiDetailScreen
 import io.roadbook.karoo.ui.RegionDownloadState
 import io.roadbook.karoo.ui.RegionsScreen
 import io.roadbook.karoo.ui.WaybookScreen
+import io.roadbook.karoo.ui.field.ACTION_BUILD
+import io.roadbook.karoo.ui.field.EXTRA_ACTION
 import io.roadbook.karoo.ui.hoursFor
 import io.roadbook.karoo.util.withKarooConnection
 import androidx.compose.runtime.LaunchedEffect
@@ -75,23 +77,29 @@ class MainActivity : ComponentActivity() {
         // build the query off-thread and await it where a build actually needs it.
         query = lifecycleScope.async(Dispatchers.IO) { PoiQuery(PoiDatabase.get(applicationContext)) }
 
+        // Launched from the "Tap to build" data field: kick off a build immediately and
+        // land on the Filter screen so the rider sees status (and can tweak categories).
+        val buildOnLaunch =
+            intent?.getStringExtra(EXTRA_ACTION) == ACTION_BUILD
+        if (buildOnLaunch) runBuild()
+
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    RoadbookApp()
+                    RoadbookApp(initialScreen = if (buildOnLaunch) Screen.Filter else Screen.Waybook)
                 }
             }
         }
     }
 
     @Composable
-    private fun RoadbookApp() {
+    private fun RoadbookApp(initialScreen: Screen = Screen.Waybook) {
         val config by configStore.config.collectAsStateWithLifecycle(initialValue = RoadbookConfig())
         val buildState by repository.buildState.collectAsStateWithLifecycle()
         val pois by repository.pois.collectAsStateWithLifecycle()
         val routeLength by repository.routeLengthMeters.collectAsStateWithLifecycle()
 
-        var screen: Screen by remember { mutableStateOf(Screen.Waybook) }
+        var screen: Screen by remember { mutableStateOf(initialScreen) }
         // Hoisted here so the list scroll position is preserved across navigation to
         // the detail/filter screens and back.
         val waybookListState = rememberLazyListState()
