@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/patricebender/roadbook-karoo/compare/v0.8.0...v0.9.0) (2026-08-31)
+
+
+### Features
+
+* multi-source water search + Hotels category ([#22](https://github.com/patricebender/roadbook-karoo/issues/22)) ([ad98b20](https://github.com/patricebender/roadbook-karoo/commit/ad98b2003a5938a7cfdfefbe599da504e560b746))
+
 ## [0.8.0](https://github.com/patricebender/roadbook-karoo/compare/v0.7.1...v0.8.0) (2026-08-31)
 
 
