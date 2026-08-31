@@ -23,6 +23,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
 
+    # Scopes the environment's PLACES_API_KEY secret to this job (injected into the
+    # Build APK step). release-please runs on every main push; only the merged release
+    # PR builds the APK, so any environment protection rules gate those pushes too.
+    environment: production
+
     permissions:
       contents: write        # create releases + tags
       pull-requests: write   # maintain the release PR
@@ -87,6 +92,10 @@ jobs:
           GPR_KEY: ${{ secrets.GITHUB_TOKEN }}
           # Monotonic Android versionCode; versionName comes from release-please.
           VERSION_CODE: ${{ github.run_number }}
+          # Google Places key for the on-demand "check hours on Google" fallback.
+          # Without it BuildConfig.PLACES_API_KEY is empty and the feature is disabled,
+          # leaving POIs without OSM hours with a bare detail page.
+          PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
         run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Attach APK to release
