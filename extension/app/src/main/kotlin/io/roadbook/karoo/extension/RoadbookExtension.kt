@@ -1,6 +1,7 @@
 package io.roadbook.karoo.extension
 
 import io.hammerhead.karooext.KarooSystemService
+import io.hammerhead.karooext.extension.DataTypeImpl
 import io.hammerhead.karooext.extension.KarooExtension
 import io.hammerhead.karooext.internal.Emitter
 import io.hammerhead.karooext.models.HideSymbols
@@ -42,6 +43,10 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
     private lateinit var configStore: ConfigStore
     private lateinit var query: Deferred<PoiQuery>
 
+    // Shared, connected system service the data field streams route progress from.
+    // Connected in onCreate, disconnected in onDestroy.
+    private lateinit var karooSystem: KarooSystemService
+
     override fun onCreate() {
         super.onCreate()
         repository = RoadbookRepository.get(applicationContext)
@@ -51,6 +56,17 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
         // Deferred so a build triggered before the seed finishes awaits it instead of
         // racing an uninitialized query.
         query = scope.async { PoiQuery(PoiDatabase.get(applicationContext)) }
+
+        karooSystem = KarooSystemService(applicationContext)
+        karooSystem.connect { connected -> Timber.d("karooSystem connected=$connected") }
+    }
+
+    /**
+     * Custom data fields the rider can add to a ride page. Evaluated lazily after
+     * [onCreate] so [karooSystem]/[repository]/[configStore] are ready.
+     */
+    override val types: List<DataTypeImpl> by lazy {
+        listOf(UpcomingPoisDataType(karooSystem, repository, configStore, extension))
     }
 
     override fun onBonusAction(actionId: String) {
@@ -81,30 +97,26 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
             .launchIn(scope)
 
         // Clear the roadbook when the rider stops navigating (route removed).
-        val system = KarooSystemService(applicationContext)
-        var navConsumerId: String? = null
-        system.connect { connected ->
-            if (!connected) return@connect
-            navConsumerId = system.addConsumer<OnNavigationState> { event ->
-                if (event.state is OnNavigationState.NavigationState.Idle &&
-                    repository.pois.value.isNotEmpty()
-                ) {
-                    Timber.d("route removed → clearing roadbook")
-                    repository.clear()
-                    repository.setBuildState(BuildState.Idle)
-                }
+        // Reuse the shared, already-connected karooSystem.
+        val navConsumerId = karooSystem.addConsumer<OnNavigationState> { event ->
+            if (event.state is OnNavigationState.NavigationState.Idle &&
+                repository.pois.value.isNotEmpty()
+            ) {
+                Timber.d("route removed → clearing roadbook")
+                repository.clear()
+                repository.setBuildState(BuildState.Idle)
             }
         }
 
         emitter.setCancellable {
             Timber.d("startMap: cancelled")
             drawJob.cancel()
-            navConsumerId?.let { system.removeConsumer(it) }
-            system.disconnect()
+            karooSystem.removeConsumer(navConsumerId)
         }
     }
 
     override fun onDestroy() {
+        karooSystem.disconnect()
         scope.cancel()
         super.onDestroy()
     }

@@ -6,6 +6,12 @@
     scansDevices="false"
     mapLayer="true"
     fitFile="false">
+    <DataType
+        typeId="upcoming-pois"
+        displayName="@string/field_upcoming_pois"
+        description="@string/field_upcoming_pois_desc"
+        graphical="true"
+        icon="@drawable/ic_roadbook" />
     <BonusAction
         actionId="build"
         displayName="@string/action_build" />

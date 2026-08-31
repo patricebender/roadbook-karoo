@@ -6,6 +6,12 @@ import io.hammerhead.karooext.models.HttpResponseState
 import io.hammerhead.karooext.models.KarooEvent
 import io.hammerhead.karooext.models.OnHttpResponse
 import io.hammerhead.karooext.models.OnHttpResponse.MakeHttpRequest
+import io.hammerhead.karooext.models.OnStreamState
+import io.hammerhead.karooext.models.StreamState
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
@@ -75,6 +81,18 @@ suspend fun KarooSystemService.httpRequest(
             cont.invokeOnCancellation { consumerId?.let { removeConsumer(it) } }
         }
     }.also { if (it == null) Timber.w("httpRequest timed out after ${timeoutMs}ms: $url") }
+
+/**
+ * Cold flow of [StreamState] for a data type, subscribing on collect and
+ * unsubscribing on cancel. Mirrors the helper the karoo-ext sample defines; used by
+ * the Upcoming POIs field to follow live route progress (DISTANCE_TO_DESTINATION).
+ */
+fun KarooSystemService.streamDataFlow(dataTypeId: String): Flow<StreamState> = callbackFlow {
+    val listenerId = addConsumer(OnStreamState.StartStreaming(dataTypeId)) { event: OnStreamState ->
+        trySendBlocking(event.state)
+    }
+    awaitClose { removeConsumer(listenerId) }
+}
 
 /**
  * Run [block] against a freshly-connected [KarooSystemService], disconnecting when done
