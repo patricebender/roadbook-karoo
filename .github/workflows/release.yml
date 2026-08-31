@@ -47,11 +47,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Bundle the POI seed (full Germany) into the APK. It's the same gzipped,
-      # R*Tree-stripped file the region picker downloads, published on the regions
-      # release — pulled here rather than rebuilt from OSM. Its schemaVersion must equal
-      # the app's BUNDLED_DB_VERSION; a stale regions release (older schema) fails the
-      # build so we never ship an APK whose seed the app would reject.
+      # Bundle the POI seed (full Germany) into the APK. It's the R*Tree-stripped Germany
+      # region file the picker downloads, published (gzipped) on the regions release —
+      # pulled here rather than rebuilt from OSM. Its schemaVersion must equal the app's
+      # BUNDLED_DB_VERSION; a stale regions release (older schema) fails the build so we
+      # never ship an APK whose seed the app would reject.
+      #
+      # Gunzip it to a plain .sqlite: the app opens `pois-germany.sqlite` (SEED_ASSET), and
+      # AGP's asset merger would auto-inflate + rename a `.gz` asset anyway. Decompress
+      # explicitly so the asset name is honest and doesn't depend on that quirk.
       - name: Fetch Germany seed asset
         if: ${{ steps.rp.outputs.releases_created == 'true' }}
         env:
@@ -71,9 +75,9 @@ jobs:
           fi
           gh release download regions-latest \
             --pattern "germany-v${SCHEMA}.sqlite.gz" --dir seed --clobber
-          cp "seed/germany-v${SCHEMA}.sqlite.gz" \
-            extension/app/src/main/assets/pois-germany.sqlite.gz
-          ls -la extension/app/src/main/assets/pois-germany.sqlite.gz
+          gunzip -c "seed/germany-v${SCHEMA}.sqlite.gz" \
+            > extension/app/src/main/assets/pois-germany.sqlite
+          ls -la extension/app/src/main/assets/pois-germany.sqlite
 
       - name: Build APK
         if: ${{ steps.rp.outputs.releases_created == 'true' }}

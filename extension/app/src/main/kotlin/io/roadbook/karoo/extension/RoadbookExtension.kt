@@ -18,8 +18,10 @@ import io.roadbook.karoo.data.PoiQuery
 import io.roadbook.karoo.data.RoadbookRepository
 import io.roadbook.karoo.util.withKarooConnection
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -38,13 +40,17 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var repository: RoadbookRepository
     private lateinit var configStore: ConfigStore
-    private lateinit var query: PoiQuery
+    private lateinit var query: Deferred<PoiQuery>
 
     override fun onCreate() {
         super.onCreate()
         repository = RoadbookRepository.get(applicationContext)
         configStore = ConfigStore(applicationContext)
-        query = PoiQuery(PoiDatabase.get(applicationContext))
+        // PoiDatabase.get() seeds the ~310k-row Germany DB on first launch; that's far too
+        // slow for the main thread (ANRs the service). Build it off-thread and hand out a
+        // Deferred so a build triggered before the seed finishes awaits it instead of
+        // racing an uninitialized query.
+        query = scope.async { PoiQuery(PoiDatabase.get(applicationContext)) }
     }
 
     override fun onBonusAction(actionId: String) {
@@ -52,7 +58,7 @@ class RoadbookExtension : KarooExtension("roadbook", BuildConfig.VERSION_NAME) {
         Timber.d("onBonusAction: build")
         scope.launch {
             withKarooConnection(applicationContext) { system ->
-                BuildController(system, configStore, repository, query).runBuild()
+                BuildController(system, configStore, repository, query.await()).runBuild()
             }
         }
     }

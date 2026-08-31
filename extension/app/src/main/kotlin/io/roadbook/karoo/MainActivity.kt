@@ -39,7 +39,9 @@ import io.roadbook.karoo.ui.WaybookScreen
 import io.roadbook.karoo.ui.hoursFor
 import io.roadbook.karoo.util.withKarooConnection
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -56,7 +58,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var configStore: ConfigStore
     private lateinit var repository: RoadbookRepository
-    private lateinit var query: PoiQuery
+    private lateinit var query: Deferred<PoiQuery>
     private val regionCatalog: List<Region> by lazy { RegionCatalog.load(applicationContext) }
 
     // Region download state, hoisted so it survives navigation between screens.
@@ -69,7 +71,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         configStore = ConfigStore(applicationContext)
         repository = RoadbookRepository.get(applicationContext)
-        query = PoiQuery(PoiDatabase.get(applicationContext))
+        // Seeding the ~310k-row Germany DB on first launch is too slow for the main thread;
+        // build the query off-thread and await it where a build actually needs it.
+        query = lifecycleScope.async(Dispatchers.IO) { PoiQuery(PoiDatabase.get(applicationContext)) }
 
         setContent {
             MaterialTheme {
@@ -189,7 +193,7 @@ class MainActivity : ComponentActivity() {
                 return@connect
             }
             lifecycleScope.launch {
-                BuildController(system, configStore, repository, query).runBuild()
+                BuildController(system, configStore, repository, query.await()).runBuild()
                 system.disconnect()
             }
         }
