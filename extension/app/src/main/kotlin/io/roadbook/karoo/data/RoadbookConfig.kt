@@ -12,7 +12,8 @@ enum class Category(val id: String, val label: String) {
     TOILET("toilet", "Toilets"),
     BIKE("bike", "Bike shops"),
     FUEL("fuel", "Fuel stations"),
-    ICE_CREAM("ice_cream", "Ice Cream");
+    ICE_CREAM("ice_cream", "Ice Cream"),
+    HOTELS("hotels", "Hotels");
 
     companion object {
         /** Map a POI `type` (as stored in the DB) back to its category. */
@@ -25,6 +26,7 @@ enum class Category(val id: String, val label: String) {
             "BIKE_SHOP" -> BIKE
             "GAS_STATION" -> FUEL
             "ICE_CREAM" -> ICE_CREAM
+            "LODGING" -> HOTELS
             else -> null
         }
     }

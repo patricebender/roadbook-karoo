@@ -50,6 +50,12 @@ export const CATEGORY_RULES: Record<Category, TagRule[]> = {
     { key: "amenity", value: "ice_cream", type: "ICE_CREAM" },
     { key: "shop", value: "ice_cream", type: "ICE_CREAM" },
   ],
+  hotels: [
+    { key: "tourism", value: "hotel", type: "LODGING" },
+    { key: "tourism", value: "guest_house", type: "LODGING" },
+    { key: "tourism", value: "hostel", type: "LODGING" },
+    { key: "tourism", value: "motel", type: "LODGING" },
+  ],
 };
 
 /** All rules for the enabled categories, flattened. */

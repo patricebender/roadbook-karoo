@@ -63,7 +63,11 @@ osmium tags-filter --overwrite -o "$FILTERED" "$PBF" \
   nwr/amenity=bicycle_parking \
   nwr/amenity=fuel \
   nwr/amenity=ice_cream \
-  nwr/shop=ice_cream
+  nwr/shop=ice_cream \
+  nwr/tourism=hotel \
+  nwr/tourism=guest_house \
+  nwr/tourism=hostel \
+  nwr/tourism=motel
 echo "   $(du -h "$FILTERED" | cut -f1) after filter"
 
 # Export to GeoJSONSeq; ways/relations become a representative point (centroid).
